@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Enterprise NuGet configuration template.
+
+Copy this file to "NuGet.config" in the repository root (next to SynthGen.sln) and
+uncomment / edit ONE of the source blocks below. A NuGet.config at the solution root
+overrides machine-level sources for everything under it, so builds stop reaching
+nuget.org before any restore is attempted.
+
+Pick exactly one strategy:
+
+  A) Internal mirror (Artifactory / Nexus / Azure Artifacts proxying nuget.org)
+  B) Offline folder feed produced by scripts/export-offline-feed.ps1
+
+If your proxy requires credentials, prefer environment-based auth
+(NUGET_CREDENTIALPROVIDER, or artifact credential providers) over storing secrets here.
+If TLS is intercepted by a corporate CA, install that CA into the Windows machine trust
+store; NuGet uses the OS trust store.
+-->
+<configuration>
+  <packageSources>
+    <!-- Remove all inherited sources (machine-level nuget.org) so nothing leaks out. -->
+    <clear />
+
+    <!-- A) Internal mirror: -->
+    <!-- <add key="corp-nuget" value="https://artifacts.corp.example/api/nuget/v3/nuget-remote/index.json" /> -->
+
+    <!-- B) Offline folder feed (relative paths are resolved against this file): -->
+    <!-- <add key="offline" value="offline-packages" /> -->
+  </packageSources>
+
+  <config>
+    <!-- Optional: keep the package cache inside the repo/workspace (useful on locked-down
+         machines where the profile is small or roaming): -->
+    <!-- <add key="globalPackagesFolder" value=".nuget-packages" /> -->
+
+    <!-- Optional: explicit proxy (usually unnecessary when HTTPS_PROXY is set): -->
+    <!-- <add key="http_proxy" value="http://proxy.corp.example:8080" /> -->
+  </config>
+</configuration>

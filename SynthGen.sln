@@ -1,0 +1,50 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{1BE54B58-19C6-4673-B693-6A1D2EB3C8D8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SynthGen.Core", "src\SynthGen.Core\SynthGen.Core.csproj", "{5B2B3F05-8B39-4571-8B7A-F9C10CB02B61}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SynthGen.Cli", "src\SynthGen.Cli\SynthGen.Cli.csproj", "{501205A7-F83C-4A39-9DED-B6C1A4FC7A07}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{EFF6B650-7D03-4DDF-9911-510A7DAF0960}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SynthGen.Tests", "tests\SynthGen.Tests\SynthGen.Tests.csproj", "{01EF29DE-4E98-44B5-AA45-D63653BB463A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SynthGen.Sqlite", "src\SynthGen.Sqlite\SynthGen.Sqlite.csproj", "{FC3DD746-338D-4326-B90C-97A5949E4DD1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5B2B3F05-8B39-4571-8B7A-F9C10CB02B61}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5B2B3F05-8B39-4571-8B7A-F9C10CB02B61}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5B2B3F05-8B39-4571-8B7A-F9C10CB02B61}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5B2B3F05-8B39-4571-8B7A-F9C10CB02B61}.Release|Any CPU.Build.0 = Release|Any CPU
+		{501205A7-F83C-4A39-9DED-B6C1A4FC7A07}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{501205A7-F83C-4A39-9DED-B6C1A4FC7A07}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{501205A7-F83C-4A39-9DED-B6C1A4FC7A07}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{501205A7-F83C-4A39-9DED-B6C1A4FC7A07}.Release|Any CPU.Build.0 = Release|Any CPU
+		{01EF29DE-4E98-44B5-AA45-D63653BB463A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{01EF29DE-4E98-44B5-AA45-D63653BB463A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{01EF29DE-4E98-44B5-AA45-D63653BB463A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{01EF29DE-4E98-44B5-AA45-D63653BB463A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FC3DD746-338D-4326-B90C-97A5949E4DD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FC3DD746-338D-4326-B90C-97A5949E4DD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FC3DD746-338D-4326-B90C-97A5949E4DD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FC3DD746-338D-4326-B90C-97A5949E4DD1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{5B2B3F05-8B39-4571-8B7A-F9C10CB02B61} = {1BE54B58-19C6-4673-B693-6A1D2EB3C8D8}
+		{501205A7-F83C-4A39-9DED-B6C1A4FC7A07} = {1BE54B58-19C6-4673-B693-6A1D2EB3C8D8}
+		{01EF29DE-4E98-44B5-AA45-D63653BB463A} = {EFF6B650-7D03-4DDF-9911-510A7DAF0960}
+		{FC3DD746-338D-4326-B90C-97A5949E4DD1} = {1BE54B58-19C6-4673-B693-6A1D2EB3C8D8}
+	EndGlobalSection
+EndGlobal

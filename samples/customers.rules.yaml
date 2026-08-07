@@ -1,0 +1,104 @@
+# Hand-tuned rules for [dbo].[Customers] (see customers.sql).
+# Satisfies the CHECK constraints and demonstrates most strategies.
+
+table: dbo.Customers
+rows: 1000
+seed: 20260807
+truncateBeforeLoad: false
+batchSize: 10000
+
+columns:
+  # IDENTITY -> database generates the value.
+  CustomerId:
+    strategy: skip
+  CustomerCode:
+    strategy: template
+    template: CUST-{row}
+    unique: true
+  FirstName:
+    strategy: faker
+    method: name.firstName
+  LastName:
+    strategy: faker
+    method: name.lastName
+  Email:
+    # {row} keeps emails unique without retry loops.
+    strategy: template
+    template: user{row}@example.test
+    unique: true
+  Phone:
+    strategy: faker
+    method: phone.phoneNumber
+    nullRate: 0.2
+  BirthDate:
+    strategy: date
+    min: 1955-01-01
+    max: 2005-12-31
+    nullRate: 0.1
+  CreditLimit:
+    # CK_Customers_CreditLimit requires >= 0.
+    strategy: decimal
+    min: 0
+    max: 50000
+  IsActive:
+    strategy: bool
+    trueRate: 0.9
+  Status:
+    # CK_Customers_Status allows exactly these values.
+    strategy: pick
+    values: [Active, Inactive, Pending]
+    weights: [0.7, 0.2, 0.1]
+  CountryCode:
+    # FK -> dbo.Countries; pulls real codes from the referenced table.
+    strategy: query
+    query: SELECT [CountryCode] FROM [dbo].[Countries]
+  CreatedAt:
+    strategy: datetime
+    min: 2024-01-01
+    max: 2026-06-30
+  ExternalId:
+    strategy: guid
+    unique: true
+  Notes:
+    strategy: faker
+    method: lorem.sentence
+    nullRate: 0.5
+
+evaluations:
+  - name: row-count
+    query: SELECT COUNT(*) FROM [dbo].[Customers]
+    expect:
+      equals: 1000
+  - name: email-unique
+    query: SELECT COUNT(*) - COUNT(DISTINCT [Email]) FROM [dbo].[Customers]
+    expect:
+      equals: 0
+  - name: status-check-honored
+    query: >-
+      SELECT COUNT(*) FROM [dbo].[Customers]
+      WHERE [Status] NOT IN ('Active', 'Inactive', 'Pending')
+    expect:
+      equals: 0
+  - name: credit-limit-non-negative
+    query: SELECT COUNT(*) FROM [dbo].[Customers] WHERE [CreditLimit] < 0
+    expect:
+      equals: 0
+  - name: active-share
+    # trueRate 0.9 with some sampling slack.
+    query: SELECT CAST(SUM(CASE WHEN [IsActive] = 1 THEN 1.0 ELSE 0.0 END) / COUNT(*) AS FLOAT) FROM [dbo].[Customers]
+    expect:
+      between: ['0.85', '0.95']
+  - name: fk-integrity
+    query: >-
+      SELECT COUNT(*) FROM [dbo].[Customers] c
+      LEFT JOIN [dbo].[Countries] k ON k.[CountryCode] = c.[CountryCode]
+      WHERE k.[CountryCode] IS NULL
+    expect:
+      equals: 0
+  - name: phone-null-share
+    query: SELECT CAST(SUM(CASE WHEN [Phone] IS NULL THEN 1.0 ELSE 0.0 END) / COUNT(*) AS FLOAT) FROM [dbo].[Customers]
+    expect:
+      between: ['0.15', '0.25']
+  - name: avg-credit-limit
+    # Informational: no expectation, just reports the value.
+    query: SELECT AVG([CreditLimit]) FROM [dbo].[Customers]

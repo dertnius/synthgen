@@ -1,0 +1,103 @@
+# [Sales].[SalesOrderHeader] — 500 orders. TotalDue is computed (skipped). Date
+# ranges are disjoint so CK_SalesOrderHeader_DueDate/ShipDate always hold:
+# orders placed in 2023, due/shipped in 2024.
+
+table: Sales.SalesOrderHeader
+rows: 500
+seed: 106
+
+columns:
+  SalesOrderID:
+    strategy: skip            # IDENTITY
+  RevisionNumber:
+    strategy: int
+    min: 0
+    max: 8
+  OrderDate:
+    strategy: datetime
+    min: 2023-01-01
+    max: 2023-12-31
+  DueDate:
+    strategy: datetime
+    min: 2024-01-05
+    max: 2024-06-30
+  ShipDate:
+    strategy: datetime
+    min: 2024-01-01
+    max: 2024-03-31
+    nullRate: 0.15
+  Status:
+    # 1=In process, 2=Approved, 3=Backordered, 4=Rejected, 5=Shipped (AW codes 0-8).
+    strategy: pick
+    values: ['1', '2', '3', '4', '5']
+    weights: [0.05, 0.1, 0.05, 0.02, 0.78]
+  OnlineOrderFlag:
+    strategy: bool
+    trueRate: 0.6
+  CustomerID:
+    strategy: query
+    query: SELECT [CustomerID] FROM [Sales].[Customer]
+  TerritoryID:
+    strategy: query
+    query: SELECT [TerritoryID] FROM [Sales].[SalesTerritory]
+    nullRate: 0.05
+  SubTotal:
+    strategy: decimal
+    min: 10
+    max: 30000
+  TaxAmt:
+    strategy: decimal
+    min: 1
+    max: 2400
+  Freight:
+    strategy: decimal
+    min: 1
+    max: 750
+  rowguid:
+    strategy: guid
+    unique: true
+  ModifiedDate:
+    strategy: datetime
+    min: 2024-01-01
+    max: 2025-06-30
+
+evaluations:
+  - name: row-count
+    query: SELECT COUNT(*) FROM [Sales].[SalesOrderHeader]
+    expect:
+      equals: 500
+  - name: ck-status-range
+    query: SELECT COUNT(*) FROM [Sales].[SalesOrderHeader] WHERE [Status] < 0 OR [Status] > 8
+    expect:
+      equals: 0
+  - name: ck-due-after-order
+    query: SELECT COUNT(*) FROM [Sales].[SalesOrderHeader] WHERE [DueDate] < [OrderDate]
+    expect:
+      equals: 0
+  - name: ck-ship-after-order
+    query: >-
+      SELECT COUNT(*) FROM [Sales].[SalesOrderHeader]
+      WHERE [ShipDate] IS NOT NULL AND [ShipDate] < [OrderDate]
+    expect:
+      equals: 0
+  - name: ck-amounts-non-negative
+    query: >-
+      SELECT COUNT(*) FROM [Sales].[SalesOrderHeader]
+      WHERE [SubTotal] < 0 OR [TaxAmt] < 0 OR [Freight] < 0
+    expect:
+      equals: 0
+  - name: fk-customer
+    query: >-
+      SELECT COUNT(*) FROM [Sales].[SalesOrderHeader] o
+      LEFT JOIN [Sales].[Customer] c ON c.[CustomerID] = o.[CustomerID]
+      WHERE c.[CustomerID] IS NULL
+    expect:
+      equals: 0
+  - name: shipped-share
+    query: >-
+      SELECT CAST(SUM(CASE WHEN [Status] = 5 THEN 1.0 ELSE 0.0 END) / COUNT(*) AS FLOAT)
+      FROM [Sales].[SalesOrderHeader]
+    expect:
+      between: ['0.7', '0.86']
+  - name: total-revenue
+    query: SELECT SUM([SubTotal] + [TaxAmt] + [Freight]) FROM [Sales].[SalesOrderHeader]

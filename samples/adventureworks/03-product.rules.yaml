@@ -1,0 +1,136 @@
+# [Production].[Product] — 200 products. Ranges honor the table's CHECK constraints
+# (SafetyStockLevel/ReorderPoint > 0, costs/prices >= 0, DaysToManufacture >= 0,
+# ProductLine in R/M/T/S, SellEndDate >= SellStartDate via disjoint date ranges).
+
+table: Production.Product
+rows: 200
+seed: 103
+
+columns:
+  ProductID:
+    strategy: skip            # IDENTITY
+  Name:
+    strategy: faker
+    method: commerce.productName
+    unique: true
+  ProductNumber:
+    strategy: template
+    template: 'PR-{rand:1000-9999}-{row}'
+    unique: true
+  MakeFlag:
+    strategy: bool
+    trueRate: 0.45
+  FinishedGoodsFlag:
+    strategy: bool
+    trueRate: 0.8
+  Color:
+    strategy: pick
+    values: [Black, Blue, Grey, Multi, Red, Silver, White, Yellow]
+    nullRate: 0.3
+  SafetyStockLevel:
+    strategy: int
+    min: 4
+    max: 1000
+  ReorderPoint:
+    strategy: int
+    min: 3
+    max: 750
+  StandardCost:
+    strategy: decimal
+    min: 3
+    max: 1500
+  ListPrice:
+    strategy: decimal
+    min: 5
+    max: 3500
+  Size:
+    strategy: pick
+    values: ['38', '40', '42', '44', S, M, L, XL]
+    nullRate: 0.4
+  Weight:
+    strategy: decimal
+    min: 2
+    max: 30
+    nullRate: 0.3
+  DaysToManufacture:
+    strategy: int
+    min: 0
+    max: 4
+  ProductLine:
+    strategy: pick
+    values: [R, M, T, S]
+    nullRate: 0.2
+  Class:
+    strategy: pick
+    values: [H, M, L]
+    nullRate: 0.4
+  Style:
+    strategy: pick
+    values: [U, M, W]
+    nullRate: 0.4
+  ProductSubcategoryID:
+    strategy: query
+    query: SELECT [ProductSubcategoryID] FROM [Production].[ProductSubcategory]
+    nullRate: 0.1
+  SellStartDate:
+    strategy: datetime
+    min: 2020-01-01
+    max: 2022-12-31
+  SellEndDate:
+    # Disjoint from SellStartDate's range so CK_Product_SellEndDate always holds.
+    strategy: datetime
+    min: 2024-01-01
+    max: 2025-12-31
+    nullRate: 0.7
+  rowguid:
+    strategy: guid
+    unique: true
+  ModifiedDate:
+    strategy: datetime
+    min: 2024-01-01
+    max: 2025-06-30
+
+evaluations:
+  - name: row-count
+    query: SELECT COUNT(*) FROM [Production].[Product]
+    expect:
+      equals: 200
+  - name: product-number-unique
+    query: SELECT COUNT(*) - COUNT(DISTINCT [ProductNumber]) FROM [Production].[Product]
+    expect:
+      equals: 0
+  - name: ck-list-price
+    query: SELECT COUNT(*) FROM [Production].[Product] WHERE [ListPrice] < 0 OR [StandardCost] < 0
+    expect:
+      equals: 0
+  - name: ck-stock-levels
+    query: SELECT COUNT(*) FROM [Production].[Product] WHERE [SafetyStockLevel] <= 0 OR [ReorderPoint] <= 0
+    expect:
+      equals: 0
+  - name: ck-product-line
+    query: >-
+      SELECT COUNT(*) FROM [Production].[Product]
+      WHERE [ProductLine] IS NOT NULL AND [ProductLine] NOT IN ('R', 'M', 'T', 'S')
+    expect:
+      equals: 0
+  - name: ck-sell-end-after-start
+    query: >-
+      SELECT COUNT(*) FROM [Production].[Product]
+      WHERE [SellEndDate] IS NOT NULL AND [SellEndDate] < [SellStartDate]
+    expect:
+      equals: 0
+  - name: fk-subcategory
+    query: >-
+      SELECT COUNT(*) FROM [Production].[Product] p
+      LEFT JOIN [Production].[ProductSubcategory] s ON s.[ProductSubcategoryID] = p.[ProductSubcategoryID]
+      WHERE p.[ProductSubcategoryID] IS NOT NULL AND s.[ProductSubcategoryID] IS NULL
+    expect:
+      equals: 0
+  - name: color-null-share
+    query: >-
+      SELECT CAST(SUM(CASE WHEN [Color] IS NULL THEN 1.0 ELSE 0.0 END) / COUNT(*) AS FLOAT)
+      FROM [Production].[Product]
+    expect:
+      between: ['0.2', '0.4']
+  - name: avg-list-price
+    query: SELECT AVG([ListPrice]) FROM [Production].[Product]

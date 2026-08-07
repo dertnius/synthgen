@@ -1,0 +1,36 @@
+# [Production].[ProductCategory] — the four real AdventureWorks categories.
+# Note: rowguid/ModifiedDate have DB defaults, but we generate them explicitly so the
+# same rules run on SQLite (which has no NEWID()/GETDATE()).
+
+table: Production.ProductCategory
+rows: 4
+seed: 101
+
+columns:
+  ProductCategoryID:
+    strategy: skip            # IDENTITY
+  Name:
+    strategy: pick
+    values: [Bikes, Components, Clothing, Accessories]
+    unique: true
+  rowguid:
+    strategy: guid
+    unique: true
+  ModifiedDate:
+    strategy: datetime
+    min: 2024-01-01
+    max: 2025-06-30
+
+evaluations:
+  - name: row-count
+    query: SELECT COUNT(*) FROM [Production].[ProductCategory]
+    expect:
+      equals: 4
+  - name: name-unique
+    query: SELECT COUNT(*) - COUNT(DISTINCT [Name]) FROM [Production].[ProductCategory]
+    expect:
+      equals: 0
+  - name: rowguid-unique
+    query: SELECT COUNT(*) - COUNT(DISTINCT [rowguid]) FROM [Production].[ProductCategory]
+    expect:
+      equals: 0

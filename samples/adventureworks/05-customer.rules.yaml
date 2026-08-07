@@ -1,0 +1,49 @@
+# [Sales].[Customer] — 300 customers. AccountNumber is a computed column (skipped
+# automatically). PersonID/StoreID stay synthetic ints because the Person/Store
+# tables are outside this subset.
+
+table: Sales.Customer
+rows: 300
+seed: 105
+
+columns:
+  CustomerID:
+    strategy: skip            # IDENTITY
+  PersonID:
+    strategy: int
+    min: 1
+    max: 20000
+    nullRate: 0.4
+  StoreID:
+    strategy: int
+    min: 1
+    max: 1200
+    nullRate: 0.6
+  TerritoryID:
+    strategy: query
+    query: SELECT [TerritoryID] FROM [Sales].[SalesTerritory]
+    nullRate: 0.05
+  rowguid:
+    strategy: guid
+    unique: true
+  ModifiedDate:
+    strategy: datetime
+    min: 2024-01-01
+    max: 2025-06-30
+
+evaluations:
+  - name: row-count
+    query: SELECT COUNT(*) FROM [Sales].[Customer]
+    expect:
+      equals: 300
+  - name: fk-territory
+    query: >-
+      SELECT COUNT(*) FROM [Sales].[Customer] c
+      LEFT JOIN [Sales].[SalesTerritory] t ON t.[TerritoryID] = c.[TerritoryID]
+      WHERE c.[TerritoryID] IS NOT NULL AND t.[TerritoryID] IS NULL
+    expect:
+      equals: 0
+  - name: rowguid-unique
+    query: SELECT COUNT(*) - COUNT(DISTINCT [rowguid]) FROM [Sales].[Customer]
+    expect:
+      equals: 0

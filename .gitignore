@@ -1,0 +1,21 @@
+# Build output
+bin/
+obj/
+*.user
+.vs/
+
+# Generated local databases and workspace scratch
+scratch/
+
+# Derived offline NuGet feed (regenerate with scripts/export-offline-feed.ps1)
+offline-packages/
+
+# Local NuGet cache when globalPackagesFolder is redirected into the repo
+.nuget-packages/
+
+# Machine-specific enterprise config (copied from the .example templates)
+NuGet.config
+
+# SQLite files anywhere else
+*.db
+*.db-journal

@@ -1,0 +1,46 @@
+# [Sales].[SalesTerritory] — the ten real AdventureWorks territories.
+# [Group] is a reserved word in T-SQL; the DDL brackets it and so do the queries.
+
+table: Sales.SalesTerritory
+rows: 10
+seed: 104
+
+columns:
+  TerritoryID:
+    strategy: skip            # IDENTITY
+  Name:
+    strategy: pick
+    values: [Northwest, Northeast, Central, Southwest, Southeast,
+             Canada, France, Germany, Australia, United Kingdom]
+    unique: true
+  CountryRegionCode:
+    strategy: pick
+    values: [US, CA, FR, DE, AU, GB]
+  Group:
+    strategy: pick
+    values: [North America, Europe, Pacific]
+  SalesYTD:
+    strategy: decimal
+    min: 0
+    max: 8000000
+  rowguid:
+    strategy: guid
+    unique: true
+  ModifiedDate:
+    strategy: datetime
+    min: 2024-01-01
+    max: 2025-06-30
+
+evaluations:
+  - name: row-count
+    query: SELECT COUNT(*) FROM [Sales].[SalesTerritory]
+    expect:
+      equals: 10
+  - name: name-unique
+    query: SELECT COUNT(*) - COUNT(DISTINCT [Name]) FROM [Sales].[SalesTerritory]
+    expect:
+      equals: 0
+  - name: ck-sales-ytd
+    query: SELECT COUNT(*) FROM [Sales].[SalesTerritory] WHERE [SalesYTD] < 0
+    expect:
+      equals: 0

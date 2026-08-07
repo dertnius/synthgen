@@ -1,0 +1,34 @@
+# Enterprise conda/micromamba configuration template.
+#
+# Copy to your user profile as ".condarc" (%USERPROFILE%\.condarc), or keep it
+# elsewhere and point CONDARC at it. micromamba honors the same file (or ~/.mambarc).
+# Edit the URLs to your internal repository (Artifactory/Nexus conda remotes that
+# proxy conda-forge), then scripts/setup-sqlite.ps1 works without touching the
+# public internet — or pass the channel explicitly:
+#
+#   pwsh scripts/setup-sqlite.ps1 -Channel https://artifacts.corp.example/api/conda/conda-forge-remote
+#
+# Air-gapped alternative: transfer the package archives and run with -Offline
+# (see ENTERPRISE-SETUP.md, section "Conda without any network").
+
+# Route ALL channel names through the internal repository (conda-forge, defaults, ...):
+channel_alias: https://artifacts.corp.example/api/conda
+
+# Only these channels are ever consulted:
+channels:
+  - conda-forge
+
+# Never fall back to Anaconda's public defaults implicitly:
+default_channels: []
+
+# Corporate TLS interception: point at your CA bundle (PEM), or the OS store:
+# ssl_verify: C:\corp\ca-bundle.pem
+
+# Proxy (usually inherited from HTTPS_PROXY; set explicitly if needed):
+# proxy_servers:
+#   http: http://proxy.corp.example:8080
+#   https: http://proxy.corp.example:8080
+
+# Optional: keep package cache in a known, transferable location:
+# pkgs_dirs:
+#   - C:\conda-pkgs

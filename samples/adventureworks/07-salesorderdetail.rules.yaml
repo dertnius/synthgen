@@ -1,0 +1,98 @@
+# [Sales].[SalesOrderDetail] — 2000 order lines. The PK is composite
+# (SalesOrderID, SalesOrderDetailID) where SalesOrderDetailID is IDENTITY: the
+# database cannot auto-assign a non-rowid composite member on SQLite, so the rule
+# supplies an explicit global sequence (on SQL Server this engages KeepIdentity).
+# LineTotal is computed (skipped).
+
+table: Sales.SalesOrderDetail
+rows: 2000
+seed: 107
+
+columns:
+  SalesOrderID:
+    strategy: query
+    query: SELECT [SalesOrderID] FROM [Sales].[SalesOrderHeader]
+  SalesOrderDetailID:
+    strategy: sequence
+    start: 1
+    step: 1
+  CarrierTrackingNumber:
+    strategy: template
+    template: '{rand:1000-9999}-{rand:400000-499999}-{rand:10-99}'
+    nullRate: 0.25
+  OrderQty:
+    strategy: int
+    min: 1
+    max: 12
+  ProductID:
+    strategy: query
+    query: SELECT [ProductID] FROM [Production].[Product]
+  UnitPrice:
+    strategy: decimal
+    min: 5
+    max: 3500
+  UnitPriceDiscount:
+    strategy: pick
+    values: ['0', '0.02', '0.05', '0.1', '0.15']
+    weights: [0.7, 0.08, 0.12, 0.06, 0.04]
+  rowguid:
+    strategy: guid
+    unique: true
+  ModifiedDate:
+    strategy: datetime
+    min: 2024-01-01
+    max: 2025-06-30
+
+evaluations:
+  - name: row-count
+    query: SELECT COUNT(*) FROM [Sales].[SalesOrderDetail]
+    expect:
+      equals: 2000
+  - name: pk-composite-unique
+    query: >-
+      SELECT COUNT(*) FROM (
+        SELECT [SalesOrderID], [SalesOrderDetailID]
+        FROM [Sales].[SalesOrderDetail]
+        GROUP BY [SalesOrderID], [SalesOrderDetailID]
+        HAVING COUNT(*) > 1
+      ) d
+    expect:
+      equals: 0
+  - name: fk-order-header
+    query: >-
+      SELECT COUNT(*) FROM [Sales].[SalesOrderDetail] d
+      LEFT JOIN [Sales].[SalesOrderHeader] h ON h.[SalesOrderID] = d.[SalesOrderID]
+      WHERE h.[SalesOrderID] IS NULL
+    expect:
+      equals: 0
+  - name: fk-product
+    query: >-
+      SELECT COUNT(*) FROM [Sales].[SalesOrderDetail] d
+      LEFT JOIN [Production].[Product] p ON p.[ProductID] = d.[ProductID]
+      WHERE p.[ProductID] IS NULL
+    expect:
+      equals: 0
+  - name: ck-order-qty
+    query: SELECT COUNT(*) FROM [Sales].[SalesOrderDetail] WHERE [OrderQty] <= 0
+    expect:
+      equals: 0
+  - name: ck-unit-price
+    query: SELECT COUNT(*) FROM [Sales].[SalesOrderDetail] WHERE [UnitPrice] < 0 OR [UnitPriceDiscount] < 0
+    expect:
+      equals: 0
+  - name: discount-capped
+    query: SELECT COUNT(*) FROM [Sales].[SalesOrderDetail] WHERE [UnitPriceDiscount] > 0.15
+    expect:
+      equals: 0
+  - name: orders-with-lines-share
+    # Random FK picks won't cover every header, but most of 500 should have lines.
+    query: >-
+      SELECT CAST(COUNT(DISTINCT [SalesOrderID]) AS FLOAT) / 500.0
+      FROM [Sales].[SalesOrderDetail]
+    expect:
+      min: '0.9'
+  - name: line-revenue
+    # Mirrors the computed LineTotal without referencing it (portable to SQLite).
+    query: >-
+      SELECT SUM([UnitPrice] * (1.0 - [UnitPriceDiscount]) * [OrderQty])
+      FROM [Sales].[SalesOrderDetail]

@@ -1,0 +1,38 @@
+# [Production].[ProductSubcategory] — 12 real AdventureWorks subcategory names,
+# each linked to a real category row loaded in step 01.
+
+table: Production.ProductSubcategory
+rows: 12
+seed: 102
+
+columns:
+  ProductSubcategoryID:
+    strategy: skip            # IDENTITY
+  ProductCategoryID:
+    strategy: query
+    query: SELECT [ProductCategoryID] FROM [Production].[ProductCategory]
+  Name:
+    strategy: pick
+    values: [Mountain Bikes, Road Bikes, Touring Bikes, Handlebars, Bottom Brackets,
+             Brakes, Chains, Cranksets, Derailleurs, Forks, Headsets, Wheels]
+    unique: true
+  rowguid:
+    strategy: guid
+    unique: true
+  ModifiedDate:
+    strategy: datetime
+    min: 2024-01-01
+    max: 2025-06-30
+
+evaluations:
+  - name: row-count
+    query: SELECT COUNT(*) FROM [Production].[ProductSubcategory]
+    expect:
+      equals: 12
+  - name: fk-category
+    query: >-
+      SELECT COUNT(*) FROM [Production].[ProductSubcategory] s
+      LEFT JOIN [Production].[ProductCategory] c ON c.[ProductCategoryID] = s.[ProductCategoryID]
+      WHERE c.[ProductCategoryID] IS NULL
+    expect:
+      equals: 0

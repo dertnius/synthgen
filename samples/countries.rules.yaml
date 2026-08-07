@@ -1,0 +1,26 @@
+# Rules for the [dbo].[Countries] lookup table. Generate this BEFORE customers:
+# the customers rules pull CountryCode values from this table.
+
+table: dbo.Countries
+rows: 12
+seed: 1
+truncateBeforeLoad: false
+
+columns:
+  CountryCode:
+    strategy: pick
+    values: [US, GB, DE, FR, ES, IT, NL, SE, NO, DK, PT, IE]
+    unique: true
+  CountryName:
+    strategy: faker
+    method: address.country
+
+evaluations:
+  - name: row-count
+    query: SELECT COUNT(*) FROM [dbo].[Countries]
+    expect:
+      equals: 12
+  - name: code-unique
+    query: SELECT COUNT(*) - COUNT(DISTINCT [CountryCode]) FROM [dbo].[Countries]
+    expect:
+      equals: 0
