@@ -55,7 +55,9 @@ conda-provided `sqlite3.dll` at runtime.
 pwsh scripts/setup-sqlite.ps1
 ```
 
-creates the `synthgen-sqlite` conda env with the sqlite package. Discovery order:
+creates the `synthgen-sqlite` conda env with the sqlite package. (On enterprise networks,
+`scripts/setup-enterprise.ps1` runs this for you as part of its one-command setup — manual
+invocation remains supported.) Discovery order:
 
 1. `SYNTHGEN_SQLITE_DLL` environment variable (explicit pin)
 2. `envs/synthgen-sqlite/Library/bin/sqlite3.dll` in any conda/micromamba root

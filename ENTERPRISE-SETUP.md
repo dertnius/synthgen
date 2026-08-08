@@ -3,164 +3,131 @@
 How to get everything — including `scratch/adventureworks.db` — working on a machine
 where the public internet (GitHub, nuget.org, anaconda.org) is blocked or filtered.
 
-## The most important fact first
-
-**`scratch/adventureworks.db` is never downloaded.** It is *generated locally* by this
-project from two inputs that are plain text inside the repository:
-
-- [samples/adventureworks/adventureworks.sql](samples/adventureworks/adventureworks.sql) (the DDL)
-- [samples/adventureworks/*.rules.yaml](samples/adventureworks/README.md) (the generation rules)
-
-There is no AdventureWorks download, no GitHub fetch, no sample-data package. Once the
-project **builds** and the conda SQLite is **provisioned**, database generation is 100%
-offline — the only two network-dependent moments in the project's entire life are those
-build-time installations, and both can be pointed at internal enterprise sources before
-anything is installed.
-
-## Network touchpoint inventory (complete)
-
-| # | Touchpoint | When | Public endpoint | Enterprise alternative |
-|---|---|---|---|---|
-| 1 | .NET SDK 8.x | once per machine | dotnet.microsoft.com | corporate software catalog (SCCM/Intune/winget internal source) |
-| 2 | NuGet restore (123 packages, all managed code) | first build | api.nuget.org | internal mirror (Artifactory/Nexus/Azure Artifacts) **or** offline folder feed |
-| 3 | conda `sqlite` package | once, for local SQLite runs | conda-forge via anaconda.org | internal conda remote **or** offline package-cache transfer |
-| — | Generating data, running tests*, running the CLI | every run | **none** | — |
-
-\* SQLite-backed tests need touchpoint 3 done once; they skip cleanly (not fail) without it.
-
-Deliberate design choices that keep the surface this small:
-
-- **No native binaries via NuGet**: SQLite support uses `Microsoft.Data.Sqlite.Core` +
-  `SQLitePCLRaw.provider.dynamic_cdecl` (both pure managed) and loads the
-  conda-provisioned `sqlite3.dll` at runtime. Conda/micromamba is the *only* sanctioned
-  binary channel, matching the enterprise policy.
-- **No test-time downloads**: Bogus locale data is embedded in its package; ScriptDom
-  parses offline; nothing calls out at generation or evaluation time.
-
-## Configure internal sources BEFORE installing
-
-### 1. NuGet — internal mirror or offline feed
-
-Copy [NuGet.enterprise.config.example](NuGet.enterprise.config.example) to
-`NuGet.config` in the repo root and edit it. It starts with `<clear />`, so machine-wide
-public sources are cut off for this solution *before* the first restore — restores either
-use your source or fail loudly; they never silently reach nuget.org.
-
-- **Mirror path**: uncomment the `corp-nuget` source and set your Artifactory / Nexus /
-  Azure Artifacts nuget.org-proxy URL.
-- **Air-gapped path**: on any connected machine (can be outside the restricted zone),
-  restore once, then run:
-
-  ```bash
-  pwsh scripts/export-offline-feed.ps1
-  ```
-
-  This copies the exact 123-package closure (`.nupkg` files, versions pinned by the
-  lockfile-equivalent assets) into `offline-packages/`. Carry that folder (≈95 MB) over
-  your approved transfer channel together with the repo, and uncomment the `offline`
-  source in `NuGet.config`. Verify with a from-scratch restore that provably uses only
-  the folder:
-
-  ```bash
-  dotnet restore SynthGen.sln --packages scratch/restore-test --source offline-packages --no-cache
-  ```
-
-  Expect a handful of benign `NU1603` warnings ("approximate best match ... resolved"):
-  the feed contains the *resolved* closure (e.g. `Microsoft.Extensions.Logging.Abstractions`
-  8.0.2, not the 8.0.0 lower bound some packages declare), so the resolver notes the
-  substitution. The online restore resolves to exactly the same versions.
-
-Also recommended on restricted machines (silences non-essential outbound calls):
+## One command
 
 ```bash
-setx DOTNET_CLI_TELEMETRY_OPTOUT 1
+powershell -ExecutionPolicy Bypass -File scripts\setup-enterprise.ps1
 ```
 
-and in `NuGet.config` / project properties, disable the NuGet vulnerability-audit fetch
-(`<NuGetAudit>false</NuGetAudit>` in a `Directory.Build.props`, or ignore the single
-warning — restore still succeeds without it).
+The wizard reconfigures every dependency at once and ends with **proof**: it writes the
+repo's `NuGet.config` from your profile, provisions the conda SQLite environment, then
+runs `dotnet restore` → `build` → the full test suite and asserts zero skipped tests.
+If that finishes, the environment demonstrably works.
 
-### 2. Conda — internal channel or offline cache
+The workflow for an enterprise:
 
-Per policy, SQLite comes **only** from conda/micromamba. Three ways, in order of preference:
+1. Fork/mirror this repo internally, edit **[enterprise-profile.psd1](enterprise-profile.psd1)**
+   in place (mode, mirror URLs, proxy), commit. Every teammate now runs the wizard with
+   zero prompts.
+2. Machine-specific values (CA bundle path, personal proxy) go in the gitignored
+   `enterprise-profile.local.psd1` — the wizard offers to write it for you after
+   interactive prompts. Precedence: **flags > local override > committed profile > prompt**.
+3. Agents/CI run `scripts\setup-enterprise.ps1 -NonInteractive` — it never prompts and
+   fails fast with a named exit code.
 
-**a) Internal conda remote (one-off):**
+Blast radius, by design: **repo and process scope only.** The wizard never writes
+`%USERPROFILE%\.condarc`, user environment variables, or system certificate stores —
+conda gets its channel/proxy/CA per-invocation.
 
-```bash
-pwsh scripts/setup-sqlite.ps1 -Channel https://artifacts.corp.example/api/conda/conda-forge-remote
-```
+### Flags and exit codes
 
-**b) Internal remote via `.condarc` (permanent):** copy
-[.condarc.enterprise.example](.condarc.enterprise.example) to `%USERPROFILE%\.condarc`,
-set `channel_alias` to your repository, then plain `pwsh scripts/setup-sqlite.ps1` works.
-`ssl_verify` and `proxy_servers` entries in the same file handle TLS interception and
-proxies.
+`-Mode mirror|offline` · `-NuGetMirrorUrl` · `-OfflineFeedPath` · `-CondaChannelUrl` ·
+`-ProxyUrl` · `-CaBundlePath` · `-NonInteractive` · `-SkipVerify` · `-Force`
+(overwrite a differing `NuGet.config`, backup kept)
 
-**c) Fully air-gapped:** on a connected machine, download the win-64 archives for
-`sqlite` and its dependency chain (`vc`, `vc14_runtime`, `vs2015_runtime`, `ucrt`) —
-e.g. `conda create -n synthgen-sqlite -c conda-forge sqlite --download-only` — and copy
-everything from that machine's `pkgs` cache into the restricted machine's cache
-(`%USERPROFILE%\miniconda3\pkgs`, or a dir listed in `.condarc` `pkgs_dirs`). Then:
+| Exit | Meaning |
+|---|---|
+| 0 | Environment proven working |
+| 2 | Profile/flag validation failure (missing value in `-NonInteractive`, bad mode/version) |
+| 3 | Prerequisite missing (.NET 8 SDK, conda/micromamba, offline feed) |
+| 4 | `NuGet.config` exists and differs; re-run with `-Force` or reconcile |
+| 5 | Conda env provisioning failed |
+| 6 | `dotnet restore` failed |
+| 7 | `dotnet build` failed |
+| 8 | Tests failed — or were skipped, which would mean SQLite silently missing |
 
-```bash
-pwsh scripts/setup-sqlite.ps1 -Offline
-```
+### Profile schema
 
-`-Offline` passes conda's `--offline` flag: cache-only resolution, zero network.
+All fields live in [enterprise-profile.psd1](enterprise-profile.psd1) (commented). Summary:
 
-If conda/micromamba itself is not installed yet, it must come from your approved software
-catalog — the script intentionally refuses to bootstrap it from the internet.
+| Field | Purpose |
+|---|---|
+| `Mode` | `mirror` (internal remotes) or `offline` (folder feed + conda cache) |
+| `NuGet.MirrorUrl` | v3 index URL of your internal nuget.org proxy |
+| `NuGet.OfflineFeedPath` | repo-relative folder feed (default `offline-packages`) |
+| `NuGet.GlobalPackagesFolder` | optional in-repo package cache redirect |
+| `NuGet.DisableAudit` | `$true` silences the vulnerability-audit outbound fetch |
+| `Conda.ChannelUrl` | internal conda remote (empty = public conda-forge, warned) |
+| `Conda.OfflinePkgsDir` | repo-relative transferred conda archives (air-gap) |
+| `Network.ProxyUrl` / `NoProxy` | outbound proxy for the wizard's child processes |
+| `Network.CaBundlePath` | PEM bundle for conda under TLS interception |
+| `Dotnet.TelemetryOptOut` | sets `DOTNET_CLI_TELEMETRY_OPTOUT=1` per-process |
 
-### 3. .NET SDK
+## The most important fact
 
-Any 8.x SDK. On restricted machines this comes from the corporate catalog; nothing in
-this repo downloads or updates SDKs (no `global.json` roll-forward pinning, no workloads).
-
-## Getting `scratch/adventureworks.db`, step by step
-
-Prerequisites done once (previous section): SDK present, NuGet source configured,
-conda SQLite provisioned.
-
-```bash
-dotnet restore SynthGen.sln
-```
-
-```bash
-dotnet build SynthGen.sln
-```
-
-```bash
-dotnet test SynthGen.sln
-```
+**`scratch/adventureworks.db` is never downloaded.** It is *generated locally* from plain
+text in this repository (`samples/adventureworks/adventureworks.sql` + rules YAML). Once
+the wizard has run, generation is 100% offline:
 
 ```bash
 pwsh samples/adventureworks/run-local.ps1
 ```
 
-The last command creates the schema from the DDL and loads all seven tables in
-dependency order with their evaluations (3,026 rows, 34 checks). Output files:
+## Network touchpoint inventory (complete)
 
-- `scratch/adventureworks.db` — main database (anchor file)
-- `scratch/adventureworks.Production.db`, `scratch/adventureworks.Sales.db` — one file
-  per SQL Server schema, attached under the schema's name so `[Sales].[SalesOrderHeader]`
-  style queries work verbatim
+| # | Touchpoint | When | Public endpoint | Enterprise alternative |
+|---|---|---|---|---|
+| 1 | .NET SDK 8.x | once per machine | dotnet.microsoft.com | corporate software catalog (SCCM/Intune) |
+| 2 | NuGet restore (123 packages, all managed code) | first build | api.nuget.org | internal mirror **or** offline folder feed |
+| 3 | conda `sqlite` package | once | conda-forge via anaconda.org | internal conda remote **or** offline package cache |
+| — | Generating data, running tests, running the CLI | every run | **none** | — |
 
-The run is deterministic (seeds are in the rules files): the same repo state produces the
-same database on any machine, which is also your integrity check after a file transfer —
-regenerate and compare row counts/evaluations rather than transferring the .db itself.
-If you prefer a different location: each `generate` call takes `--connection <path>`, or
-pass `-Database <path>` to `run-local.ps1`.
+Design choices keeping the surface this small: no native binaries via NuGet (the SQLite
+provider loads the conda-provisioned `sqlite3.dll` at runtime), no test-time downloads
+(Bogus data is embedded, ScriptDom parses offline).
 
-## Restriction checklist (what can bite, and the pre-arranged answer)
+## Air-gapped mode: what the transfer list means
+
+With `Mode = 'offline'` and missing artifacts, the wizard prints a transfer list naming
+exactly what to produce on a connected machine:
+
+1. **NuGet feed** — `dotnet restore SynthGen.sln`, then `pwsh scripts/export-offline-feed.ps1`;
+   carry the resulting `offline-packages/` folder (~95 MB, 123 `.nupkg`, versions pinned).
+   Expect benign `NU1603` "approximate best match" warnings on restore — the feed contains
+   the *resolved* closure.
+2. **Conda cache** — `conda create -n synthgen-sqlite -c conda-forge sqlite --download-only`;
+   copy the `sqlite`/`vc`/`vc14_runtime`/`vs2015_runtime`/`ucrt` archives from that
+   machine's `pkgs` cache into `%USERPROFILE%\miniconda3\pkgs`, or into a repo folder
+   named by `Conda.OfflinePkgsDir` (e.g. `offline-conda-pkgs/`, gitignored).
+
+Then re-run the wizard: NuGet restores from the folder feed, conda resolves `--offline`.
+
+## Restriction checklist
 
 | Restriction | Where it bites | Answer |
 |---|---|---|
-| GitHub blocked | — | Nothing is fetched from GitHub; the repo travels via your approved channel. AdventureWorks is *schema-compatible DDL authored in-repo*, not a download. |
-| nuget.org blocked | first `dotnet restore` | `NuGet.config` with `<clear />` + internal mirror or `offline-packages/` folder feed (exporter script provided). |
-| anaconda.org blocked | `setup-sqlite.ps1` | `-Channel <internal remote>`, `.condarc` channel_alias, or `-Offline` with transferred package cache. |
-| Direct binary downloads blocked | any `.exe`/`.dll` fetch | Already the design baseline: no NuGet native binaries; sqlite3.dll comes from conda only; SDK/conda from the software catalog. |
-| TLS interception (corporate CA) | NuGet + conda | NuGet uses the Windows trust store (install the corp CA there); conda: `ssl_verify:` path in `.condarc`. |
-| Outbound proxy required | NuGet + conda | `HTTPS_PROXY`/`HTTP_PROXY` env vars cover both; explicit knobs exist in both config templates. |
-| PowerShell execution policy | the three `.ps1` scripts | `pwsh -ExecutionPolicy Bypass -File <script>` (scripts are plain, no gallery modules), or run the equivalent CLI commands from TESTING.md by hand. |
-| No SQL Server anywhere | E2E validation | that's the point of `--provider sqlite`: full pipeline locally; `--provider sqlserver` stays untouched for when a server exists. |
-| Restore audit warnings offline | `dotnet restore` | vulnerability-db fetch fails soft (warning only); disable via `<NuGetAudit>false</NuGetAudit>` if warnings-as-errors is enforced. |
+| GitHub blocked | — | Nothing is fetched from GitHub; the repo travels via your approved channel. AdventureWorks is schema-compatible DDL authored in-repo, not a download. |
+| nuget.org blocked | first restore | Wizard-generated `NuGet.config` starts with `<clear />` — restore uses your mirror or the folder feed, never silently nuget.org. |
+| anaconda.org blocked | provisioning | `Conda.ChannelUrl` internal remote, or offline cache transfer. `--override-channels` stops a user `.condarc` from widening sources. |
+| Direct binary downloads blocked | any `.exe`/`.dll` fetch | Design baseline: no NuGet native binaries; sqlite3.dll from conda only; SDK/conda from the software catalog. |
+| TLS interception | NuGet + conda | NuGet: corporate CA in the Windows trust store (wizard reminds, never modifies). Conda: `Network.CaBundlePath`. |
+| Outbound proxy | NuGet + conda | `Network.ProxyUrl`/`NoProxy` — applied per-process and written into `NuGet.config`. |
+| PowerShell execution policy | the scripts | `powershell -ExecutionPolicy Bypass -File ...`; after file transfers, `Unblock-File` clears mark-of-the-web. Scripts are plain PS 5.1, no gallery modules. |
+| No SQL Server anywhere | E2E validation | `--provider sqlite` runs the full pipeline locally; `--provider sqlserver` stays untouched for when a server exists. |
+| Restore audit warnings offline | `dotnet restore` | Fails soft; set `NuGet.DisableAudit = $true` if warnings-as-errors is enforced. |
+
+## Appendix: manual fallback
+
+Every wizard stage can still be done by hand: generate/edit `NuGet.config` yourself
+(single source + `<clear />`), run `scripts/setup-sqlite.ps1` directly (`-Channel`,
+`-Offline`, `-ProxyUrl`, `-CaBundlePath`, `-PkgsDir`, `-Force`; `-SetUserEnvVar` persists
+the dll path for manual workflows — the wizard instead pins it per-process), then
+`dotnet restore/build/test`. If you want a machine-wide `.condarc` for *other* conda work
+(the wizard neither needs nor writes one):
+
+```yaml
+channel_alias: https://artifacts.corp.example/api/conda
+channels: [conda-forge]
+default_channels: []
+ssl_verify: C:\corp\ca-bundle.pem
+```

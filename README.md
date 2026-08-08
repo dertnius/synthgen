@@ -32,10 +32,10 @@ No SQL Server handy? The whole loop also runs against SQLite for local smoke tes
 (`--provider sqlite --create-table --connection local.db`) using a conda/micromamba-provided
 SQLite — see [TESTING.md](TESTING.md) and `scripts/setup-sqlite.ps1`.
 
-On a restricted network (nuget.org/anaconda.org blocked)? See
-[ENTERPRISE-SETUP.md](ENTERPRISE-SETUP.md): internal-mirror config templates, an offline
-NuGet feed exporter, and conda offline mode — everything generates locally, nothing is
-downloaded at runtime.
+On a restricted network (nuget.org/anaconda.org blocked)? One command reconfigures every
+dependency and proves the environment works:
+`powershell -ExecutionPolicy Bypass -File scripts\setup-enterprise.ps1` — see
+[ENTERPRISE-SETUP.md](ENTERPRISE-SETUP.md) for the profile, offline mode, and exit codes.
 
 During development, replace `synthgen` with `dotnet run --project src/SynthGen.Cli --`.
 The sample schema has an FK chain: generate `samples/countries.rules.yaml` first, then
