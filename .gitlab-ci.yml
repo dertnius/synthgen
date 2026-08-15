@@ -26,8 +26,8 @@ notary:
   rules:
     - exists: [artifacts/plan.approved]
   script:
-    - dotnet build src/Pfandwerk.Cli -c Release -v q
-    - dotnet run --project src/Pfandwerk.Cli -c Release --no-build -v q -- notary
+    - dotnet build src/Pfandwerk -c Release -v q
+    - dotnet run --project src/Pfandwerk -c Release --no-build -v q -- notary
   artifacts:
     when: always
     paths: [artifacts/notary.json]

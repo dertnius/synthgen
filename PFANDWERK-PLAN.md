@@ -85,18 +85,17 @@ left implicit.
 
 ```
 LOCAL (run.ps1 = dumb spine, PowerShell)
-  0 GUARD   pfandwerk guard        allowlist check
-  1 SCAN    pfandwerk scan         → gaps.json, baseline.json
-  2 PLAN    pfandwerk plan         → plan.json (values frozen) + plan.sha256
+  1 PLAN    pfandwerk plan         guard + scan + plan, values frozen
+                                   → plan.json, baseline.json
             copilot -p plan.md     → plan-summary.md (narrative only)
-  3 GATE    approve.ps1  (human)   → plan.approved {sha256, user, ts}
-  4 APPLY   pfandwerk apply        ledger+patch in one tx → patches.jsonl
-  5 VERIFY  pfandwerk verify       exit 0 | 10 | 20 | 30
-  6 REPORT  pfandwerk facts        → facts.json
-            copilot -p report-maker.md → report.md
-            pfandwerk audit --report   → report.audit.json
+  2 GATE    pfandwerk approve      → plan.approved {sha256, user, ts}
+  3 APPLY   pfandwerk apply        ledger+patch in one tx → patches.jsonl
+  4 VERIFY  pfandwerk verify       exit 0 | 10 | 20 | 30
+  5 REPORT  copilot -p report-maker.md → report.md
+            pfandwerk report       facts → audit → fallback
+                                   → facts.json, report.audit.json
 REMOTE (GitLab CI)
-  AUDIT     pfandwerk audit        recompute + cross-check committed artifacts
+  NOTARY    pfandwerk notary       recompute + cross-check committed artifacts
 ```
 
 Agents never write data. Every database write path is deterministic C#.
@@ -119,35 +118,36 @@ Everything below exists in this repository and is under test.
 
 ## 5. Repo layout
 
-Two new projects in `SynthGen.sln`, one new test project. Tools are **verbs on one CLI**, matching
-the existing `init`/`generate`/`evaluate` shape — this is also what lets the agent hook match a
-parsed invocation instead of regexing a raw command string.
+One project in `SynthGen.sln` plus its tests. Tools are **verbs on one CLI** — a single
+parsed invocation is what lets the agent permission layer allow exactly `pfandwerk <verb>`.
 
 ```
-src/Pfandwerk.Core/
-├─ Rules/    GapRule, GapRulesFile, GapRulesLoader, GapPredicateValidator
-├─ Guard/    ConnectionAllowlist
-├─ Scan/     Scanner, GapQuery          # the ONE place a predicate becomes SQL
-├─ Plan/     Planner, PlanDocument, IdentityMinter
-├─ Ledger/   LedgerRepository
-├─ Patch/    IPatchSink, SqlPatchSink, DabPatchSink, Patcher, PatchLog
-├─ Verify/   Verifier, TestRunner, Baseline
-├─ Facts/    FactExtractor
-├─ Audit/    ReportAuditor, ArtifactAuditor
-└─ Revert/   Reverter
-src/Pfandwerk.Cli/          verbs: guard scan plan apply verify facts audit revert
-tests/Pfandwerk.Tests/      unit + SQLite-backed e2e (SqliteFact on DB-touching tests)
+src/Pfandwerk/              one project, six files
+├─ Program.cs               args, dispatch, the verbs' console output
+├─ Rules.cs                 GapRule, loader, predicate validator, GapQuery
+├─ Generators.cs            the two value whitelists
+├─ Data.cs                  DbContext, ledger, allowlist, artifact records, helpers
+├─ Run.cs                   plan (scan + plan in one pass), apply, verify
+└─ Report.cs                FactExtractor, ReportAuditor, ArtifactAuditor, Reverter
+                            verbs: plan approve apply verify report notary revert generators
+tests/Pfandwerk.Tests/      unit + SQLite-backed end-to-end (SqliteFact on DB-touching tests)
 AGENTS.md                   hard rules only — stable prompt-cache prefix
 allowlist.json              permitted targets (dev/test only, no passwords)
-rules/gaps.yaml
+rules/gaps.yaml · rules/consumer-checks.yaml
 prompts/plan.md · prompts/report-maker.md
-db/pfandwerk/ledger.sql · fixtures/schema.sql · fixtures/broken-seed.sql · docker-compose.yml
-dab/dab-config.json · dab/README.md    DAB write path (generated, dab validate-clean)
-hooks/pre-tool-use.ps1 · hooks/post-tool-use.ps1
-run.ps1 · approve.ps1 · run-report.ps1
+db/pfandwerk/ledger.sql · ledger.sqlite.sql   embedded, so code cannot drift from them
+db/pfandwerk/fixtures/security.sql · security-broken-seed.sql
+dab/dab-config.json · dab/README.md    DAB config (generated, dab validate-clean)
+run.ps1                     the spine
 artifacts/                  gitignored except committed run outputs
 .gitlab-ci.yml
 ```
+
+**Three things the plan named that were deliberately not built.** `hooks/pre-tool-use.ps1`
+and `hooks/post-tool-use.ps1` were dropped when P0b found Copilot CLI has no hook mechanism
+— its native `--available-tools` / `--deny-tool` / `--add-dir` flags do that job instead
+(hard rule 6). `approve.ps1` and `run-report.ps1` became the `approve` and `report` verbs,
+so the permission layer has one command shape to allow rather than several scripts.
 
 ### Exit codes
 
@@ -205,7 +205,7 @@ Acceptance: each prompt ends with an explicit output-file contract line.
 Validates rules against the **live schema** first (a rule naming a dropped column is a config error,
 exit 2, not a runtime failure). Runs gap counts through `GapQuery`. Captures the baseline via
 `TestRunner` (§6.9).
-Output: `artifacts/gaps.json`, `artifacts/baseline.json`.
+Output: `artifacts/plan.json`, `artifacts/baseline.json`.
 Acceptance: against the broken fixture seed, finds exactly the seeded gap counts.
 
 ### 6.7 Planner (deterministic)
@@ -216,7 +216,7 @@ against the target database **and** the ledger, add to `newIdentities` with the 
 Every value is canonicalized to an invariant-culture string for ledger storage and comparison, so
 decimals, dates and trailing zeros round-trip identically. Records `rulesSha` next to `planSha` so
 the notary can prove which rules produced the plan. Count > threshold → `status: BLOCKED`.
-Output: `artifacts/plan.json` + `artifacts/plan.sha256`.
+Output: `artifacts/plan.json`. The hash is recomputed on demand; `plan.approved` records the approved one.
 Acceptance: unit tests — identity reuse, collision regeneration, threshold block, canonical
 round-trip, and a byte-identical plan from the same inputs.
 
@@ -260,7 +260,7 @@ every `facts.json` rule id appears in `report.md`. Emits
 Acceptance: mutating one number in a fixture report yields `verdict: fail` naming that number.
 
 ### 6.13 run-report.ps1
-Maker (`$env:PFANDWERK_MODEL_MAKER`) writes `report.md` → `pfandwerk audit --report` → on `fail`,
+Maker (`$env:PFANDWERK_MODEL_MAKER`) writes `report.md` → `pfandwerk report` → on `fail`,
 re-run the maker once with the violations appended → on a second `fail`, fall back to rendering
 `facts.json` as a bare markdown table with the note "narrative failed audit". Publish only audited
 or fallback output; embed plan sha, rules sha and audit stamp.
@@ -322,7 +322,7 @@ Acceptance: a blocked-command test and a trajectory-line test.
 configuration.
 
 ### 6.20 .gitlab-ci.yml
-One stage, one job: `audit` running `pfandwerk audit` on committed artifacts. No database access
+One stage, one job: `notary` running `pfandwerk notary` on committed artifacts. No database access
 required.
 
 ## 7. Build phases (dispatch order)

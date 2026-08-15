@@ -2,7 +2,7 @@ using System.Globalization;
 using Bogus;
 using SynthGen.Core.Generation;
 
-namespace Pfandwerk.Core.Generation;
+namespace Pfandwerk;
 
 public sealed class GeneratorException : Exception
 {

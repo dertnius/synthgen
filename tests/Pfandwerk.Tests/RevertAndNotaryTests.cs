@@ -1,6 +1,4 @@
-using Pfandwerk.Core.Data;
-using Pfandwerk.Core.Phases;
-using Pfandwerk.Core.Rules;
+using Pfandwerk;
 
 namespace Pfandwerk.Tests;
 

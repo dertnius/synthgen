@@ -81,7 +81,7 @@ try {
             Write-Host "  would run: pfandwerk $($CliArgs -join ' ')" -ForegroundColor DarkGray
             return 0
         }
-        dotnet run --project src/Pfandwerk.Cli -v q -- @CliArgs | Out-Host
+        dotnet run --project src/Pfandwerk -v q -- @CliArgs | Out-Host
         if ($LASTEXITCODE -notin $Ok) { throw "pfandwerk $($CliArgs[0]) exited $LASTEXITCODE" }
         return $LASTEXITCODE
     }
@@ -107,13 +107,7 @@ try {
         return $true
     }
 
-    Phase 'GUARD'
-    $null = Pf (@('guard') + $common)
-
-    Phase 'SCAN'
-    $null = Pf (@('scan') + $common)
-
-    Phase 'PLAN'
+    Phase 'GUARD + SCAN + PLAN'
     $planArgs = @('plan') + $common
     if ($PSBoundParameters.ContainsKey('Seed')) { $planArgs += @('--seed', "$Seed") }
     $null = Pf $planArgs
@@ -132,21 +126,12 @@ try {
     Phase 'VERIFY'
     $verify = Pf (@('verify') + $common) -Ok @(0, 10, 20, 30)
 
-    Phase 'FACTS'
-    $null = Pf (@('facts') + $common)
-
-    Phase 'REPORT (agent, then deterministic audit)'
-    $reportPath = Join-Path $Artifacts 'report.md'
-    $published = $false
-    if (Agent 'prompts/report-maker.md' $reportPath) {
-        if ((Pf (@('audit') + $common) -Ok @(0, 2)) -eq 0) { $published = $true }
-        else { Write-Host '  narrative failed audit' -ForegroundColor Yellow }
-    }
-    if (-not $published -and -not $WhatIfPreference) {
-        # Hard rule 8: publish an audited narrative, or the bare facts. Never an
-        # unaudited one.
-        $null = Pf (@('fallback') + $common)
-    }
+    Phase 'REPORT (agent writes, then deterministic audit)'
+    # The agent writes report.md if it can; `report` then extracts the facts, audits
+    # whatever is there, and falls back to the bare rendering if it is absent or fails.
+    # Hard rule 8 lives in that one verb rather than in this script.
+    $null = Agent 'prompts/report-maker.md' (Join-Path $Artifacts 'report.md')
+    $null = Pf (@('report') + $common)
 
     Phase 'DONE'
     Write-Host "  verify exit code: $verify   (0 clean · 10 gaps remain · 20 invariant · 30 consumer)"

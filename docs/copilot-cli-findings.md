@@ -120,8 +120,8 @@ Enumerating the real list requires authentication — every model-related invoca
 authenticated machine:
 
 ```powershell
-pwsh -File scripts/spike-copilot.ps1 -SkipModelCall    # free; surface only
-pwsh -File scripts/spike-copilot.ps1 -Model <cheapest> # one trivial call
+copilot --help                       # the flag surface, free
+copilot -p "Reply with exactly: ok" --allow-all-tools --model <cheapest>
 ```
 
 ---

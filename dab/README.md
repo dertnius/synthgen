@@ -33,7 +33,7 @@ export PFANDWERK_TARGET_CONNECTION="Server=…;Database=PropertyDev;Integrated S
 ```
 
 The same value must satisfy `allowlist.json` (hard rule 5) — DAB does not perform that
-check, `pfandwerk guard` does, and it runs first.
+check, `pfandwerk plan`'s guard step does, and it runs first.
 
 ## Running it
 

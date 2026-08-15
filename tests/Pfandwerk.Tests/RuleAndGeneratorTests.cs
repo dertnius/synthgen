@@ -1,7 +1,5 @@
 using Bogus;
-using Pfandwerk.Core.Data;
-using Pfandwerk.Core.Generation;
-using Pfandwerk.Core.Rules;
+using Pfandwerk;
 
 namespace Pfandwerk.Tests;
 

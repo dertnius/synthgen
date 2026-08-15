@@ -1,8 +1,8 @@
-using Pfandwerk.Core.Generation;
+using Microsoft.SqlServer.TransactSql.ScriptDom;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
-namespace Pfandwerk.Core.Rules;
+namespace Pfandwerk;
 
 public sealed class GapRulesLoadException : Exception
 {
@@ -146,4 +146,110 @@ public static class GapRulesLoader
             GapPredicateValidator.Validate(r);
         }
     }
+}
+
+
+/// <summary>
+/// Parses a rule's gap/invariant predicate with ScriptDom and rejects anything that could
+/// reach outside the rule's declared table. Hard rule 4 is enforced here rather than by
+/// convention: without an AST walk, a subquery inside a predicate could read any table in
+/// the instance.
+/// </summary>
+public static class GapPredicateValidator
+{
+    public static void Validate(GapRule rule)
+    {
+        Check(rule, rule.Gap, "gap");
+        if (!string.IsNullOrWhiteSpace(rule.Invariant)) Check(rule, rule.Invariant!, "invariant");
+    }
+
+    private static void Check(GapRule rule, string predicate, string field)
+    {
+        if (predicate.Contains(';'))
+            throw new GapRulesLoadException(
+                $"Rule '{rule.Id}': '{field}' contains a statement terminator.");
+
+        // Wrap the predicate in a throwaway SELECT so ScriptDom parses it as a boolean
+        // expression in the position it will actually occupy.
+        var probe = $"SELECT 1 FROM {rule.Table} WHERE {predicate}";
+        var parser = new TSql160Parser(initialQuotedIdentifiers: true);
+        var fragment = parser.Parse(new StringReader(probe), out var errors);
+
+        if (errors.Count > 0)
+            throw new GapRulesLoadException(
+                $"Rule '{rule.Id}': '{field}' is not a valid boolean expression — " +
+                string.Join("; ", errors.Select(e => e.Message)));
+
+        var script = (TSqlScript)fragment;
+        var statements = script.Batches.SelectMany(b => b.Statements).ToList();
+        if (statements.Count != 1)
+            throw new GapRulesLoadException(
+                $"Rule '{rule.Id}': '{field}' expands to {statements.Count} statements; exactly one is allowed.");
+
+        var visitor = new TableCollector();
+        fragment.Accept(visitor);
+
+        var allowed = Normalize(rule.Table);
+        var foreign = visitor.Tables.Where(t => !string.Equals(t, allowed, StringComparison.OrdinalIgnoreCase))
+                                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                                    .ToList();
+        if (foreign.Count > 0)
+            throw new GapRulesLoadException(
+                $"Rule '{rule.Id}': '{field}' references {string.Join(", ", foreign)}, " +
+                $"but the rule declares only {rule.Table}. Only tables listed in the rule may be touched.");
+    }
+
+    /// <summary>Schema-qualified, unbracketed, for comparison.</summary>
+    private static string Normalize(string name) =>
+        string.Join('.', name.Split('.').Select(p => p.Trim('[', ']', '"')));
+
+    private sealed class TableCollector : TSqlFragmentVisitor
+    {
+        public List<string> Tables { get; } = new();
+
+        public override void Visit(NamedTableReference node)
+        {
+            var parts = node.SchemaObject.Identifiers.Select(i => i.Value);
+            Tables.Add(string.Join('.', parts));
+        }
+    }
+}
+
+
+/// <summary>
+/// The single place a gap predicate becomes SQL. SCAN, PLAN and VERIFY layer 1 all call
+/// this — three independent implementations would eventually disagree about what a gap is,
+/// and the symptom would be a run reporting success while gaps remain open.
+/// </summary>
+public static class GapQuery
+{
+    public static string Count(GapRule rule) =>
+        $"SELECT COUNT(*) FROM {rule.Table} WHERE {rule.Gap}";
+
+    /// <summary>Key, current value, and any declared inputs, for every matching row.</summary>
+    public static string Rows(GapRule rule)
+    {
+        var columns = new List<string> { rule.Key, rule.Column };
+        if (rule.Inputs is not null) columns.AddRange(rule.Inputs);
+        var distinct = columns.Distinct(StringComparer.OrdinalIgnoreCase);
+        return $"SELECT {string.Join(", ", distinct)} FROM {rule.Table} WHERE {rule.Gap} ORDER BY {rule.Key}";
+    }
+
+    /// <summary>Rows still matching the gap among a specific planned key set (VERIFY layer 1).</summary>
+    public static string RemainingAmong(GapRule rule, IEnumerable<string> keys)
+    {
+        var list = string.Join(", ", keys.Select(Literal));
+        return $"SELECT {rule.Key} FROM {rule.Table} WHERE ({rule.Gap}) AND {rule.Key} IN ({list})";
+    }
+
+    /// <summary>Rows violating the rule's invariant, across the whole table.</summary>
+    public static string InvariantViolations(GapRule rule) =>
+        $"SELECT {rule.Key} FROM {rule.Table} WHERE NOT ({rule.Invariant}) ORDER BY {rule.Key}";
+
+    public static string Update(GapRule rule, string keyParam, string valueParam) =>
+        $"UPDATE {rule.Table} SET {rule.Column} = {valueParam} WHERE {rule.Key} = {keyParam}";
+
+    /// <summary>Keys arrive as strings from artifacts; numeric ones must not be quoted.</summary>
+    private static string Literal(string key) =>
+        long.TryParse(key, out _) ? key : "'" + key.Replace("'", "''") + "'";
 }

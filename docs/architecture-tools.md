@@ -17,21 +17,19 @@ is a consequence of that.
 | **YamlDotNet** | loads `rules/gaps.yaml` | rule load | no |
 | **Bogus** (`Faker`) | produces values for `ephemeral` and `identity` columns | **PLAN only** | no — generates in memory |
 | **xUnit** | invariant suite + consumer suite, both halves of the baseline diff | SCAN (baseline), VERIFY | yes, via the suites' own connections |
-| **Spectre.Console.Cli** | the `pfandwerk <verb>` command surface | all local phases | no |
 | **GitHub Copilot CLI** | writes two narrative documents | PLAN (summary), REPORT | **no — denied by default** |
 | **Data API Builder (DAB)** | *optional* alternative write path | APPLY, REVERT — only if selected | yes, if used |
 
 Two of these deserve immediate qualification.
 
-**DAB is configured and validated** — see [`dab/`](../dab/README.md). `dab-config.json` was
-generated with the DAB CLI and passes `dab validate` ("the config satisfies the schema
-requirements"), resolving `/api/Property` and `/api/Security`. It backs `DabPatchSink`, the
-write path for sites whose policy requires writes through an API layer.
+**DAB is configured and validated, but not yet implemented** — see [`dab/`](../dab/README.md).
+`dab-config.json` was generated with the DAB CLI and passes `dab validate`, resolving
+`/api/Property` and `/api/Security`. `DabPatchSink` itself does not exist: `IPatchSink` has
+one real implementation, `SqlPatchSink`, plus a test fake.
 
-`SqlPatchSink` remains the default because DAB cannot enrol the ledger write and the target
-write in one transaction (D12), so on the DAB path a ledger row means *reserved* rather
-than *applied*. Both sit behind `IPatchSink`; selecting one is configuration, not a code
-change.
+`SqlPatchSink` is the default because DAB cannot enrol the ledger write and the target write
+in one transaction (D12), so on a DAB path a ledger row would mean *reserved* rather than
+*applied*.
 
 Two things the generated config had to be corrected for, both worth knowing if you
 regenerate it: DAB 2.0.10 enables an **MCP endpoint by default**, which would expose the
@@ -86,11 +84,11 @@ separate moments — SCAN, PLAN, and VERIFY layer 1 — and if those three built
 independently they would eventually disagree about what a gap is, which would show up as a
 run that reports success while leaving gaps behind.
 
-**Step 3 — execute (Dapper over SqlClient).** `Scanner` runs the queries and writes
-`artifacts/gaps.json`. That file, not the database, is what every later phase reads.
+**Step 3 — execute (Dapper over SqlClient).** `Planner` runs the queries and writes
+`artifacts/plan.json`. That file, not the database, is what every later phase reads.
 
 Nothing about this step involves a model. An agent could not detect a gap if it wanted to:
-the hooks deny it database access, and the only tool it is permitted to run is
+the CLI permission flags deny it database access, and the only tool it is permitted to run is
 `pfandwerk <verb>`.
 
 ## 3. Who produces the values
@@ -125,15 +123,15 @@ bulk loading:
 ```csharp
 public interface IPatchSink
 {
-    PatchResult Apply(PatchInstruction instruction);
+    /// Applies the write and returns the value the column held beforehand.
+    string? Apply(PatchInstruction instruction);
 }
 ```
 
 - **`SqlPatchSink`** (default) — opens one transaction, INSERTs the ledger row when the
   rule is an identity, UPDATEs the target row, commits both or neither.
-- **`DabPatchSink`** (optional) — issues a REST PATCH against a running `dab start`. No
-  transaction can span the ledger write here, so a ledger row means *reserved* and
-  applied-state is derived from `patches.jsonl`.
+- **`DabPatchSink`** — *not built*. Would issue a REST PATCH against a running `dab start`;
+  no transaction can span the ledger write there, so a ledger row would mean *reserved*.
 - **A fake** — injected in tests to fail after the ledger write, proving the rollback
   leaves neither a ledger row nor a patched value. This is the same technique as
   `tests/SynthGen.Tests/Support/FakeTableLoader.cs`: the seam is one method, so a fake beats
@@ -160,11 +158,11 @@ computing them.
 
 ### Agent 2 — report maker
 
-Called by `run-report.ps1` after `pfandwerk facts` has produced `facts.json`:
+Called by `run.ps1` before `pfandwerk report` extracts the facts and audits the result:
 
 ```powershell
 copilot -p prompts/report-maker.md --model $env:PFANDWERK_MODEL_MAKER
-pfandwerk audit --report          # deterministic C#, not a second model
+pfandwerk report                  # deterministic C#, not a second model
 ```
 
 Reads `artifacts/facts.json`; writes `artifacts/report.md`. `ReportAuditor` then checks
@@ -196,7 +194,7 @@ misbehaving in a way instructions can prevent. Two mechanisms do the actual work
 
 Both are pending P0b, which determines whether Copilot CLI can enforce a deny at all. If it
 cannot, hard rule 6 is met by process isolation — a read-only mount and no database route —
-instead of hooks. The spike (`scripts/spike-copilot.ps1`) exists to answer exactly that,
+instead of hooks. The spike that answered this is recorded in `docs/copilot-cli-findings.md`,
 and until it does, the agents' *containment* is unproven even though their *role* is fixed.
 
 ### Where Copilot runs
@@ -210,12 +208,12 @@ would fail closed rather than silently degrade.
 
 ```
 run.ps1
-├─ pfandwerk guard    ConnectionAllowlist                          → exit 4 on mismatch
-├─ pfandwerk scan     ScriptDom → GapQuery → Dapper/SqlClient      → gaps.json
-│                     xUnit (invariants + consumer, via TestRunner) → baseline.json
-├─ pfandwerk plan     Bogus/FakerMap  (ephemeral, identity)
+├─ pfandwerk plan     ConnectionAllowlist                          → exit 4 on mismatch
+│                     ScriptDom → GapQuery → Dapper/SqlClient
+│                     Bogus/FakerMap  (ephemeral, identity)
 │                     pure functions  (derived)
-│                     ledger + target collision checks              → plan.json, plan.sha256
+│                     ledger + target collision checks              → plan.json
+│                     invariant + consumer checks                   → baseline.json
 ├─ copilot -p prompts/plan.md                                       → plan-summary.md
 ├─ approve.ps1        human reads tiers 1 and 2                     → plan.approved
 ├─ pfandwerk apply    re-verify sha256, then IPatchSink per row     → patches.jsonl
@@ -224,12 +222,12 @@ run.ps1
 │                     xUnit invariants          (layer 2)           → exit 20
 │                     xUnit consumer suite      (layer 3)           → exit 30
 │                     diffed against baseline.json                  → verify.json
-├─ pfandwerk facts    FactExtractor                                 → facts.json
+├─ pfandwerk report   FactExtractor → ReportAuditor → fallback      → facts.json
 ├─ copilot -p prompts/report-maker.md                               → report.md
-└─ pfandwerk audit --report   ReportAuditor                         → report.audit.json
+                                                                    → report.audit.json
 
 GitLab CI
-└─ pfandwerk audit    ArtifactAuditor over committed artifacts. No DB, no Copilot.
+└─ pfandwerk notary   ArtifactAuditor over committed artifacts. No DB, no Copilot.
 ```
 
 Read the two `copilot` lines against the rest: both come **after** the deterministic step

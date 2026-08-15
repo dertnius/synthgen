@@ -141,10 +141,10 @@ consumer-suite regression · `4` connection not allowlisted · `5` ledger confli
 
 **Regressions and pre-existing failures are different things and never merged.** A
 regression is something this run broke. A pre-existing failure was already failing when
-SCAN captured the baseline — it is listed, and it does not fail the run. If you see a
+`plan` captured the baseline — it is listed, and it does not fail the run. If you see a
 pre-existing failure you did not expect, your data was already worse than you thought.
 
-Artifacts land in `artifacts/`: `gaps.json`, `baseline.json`, `plan.json`, `plan.approved`,
+Artifacts land in `artifacts/`: `plan.json`, `baseline.json`, `plan.approved`,
 `patches.jsonl`, `verify.json`, `facts.json`, `report.md`. Commit them if CI is to audit the
 run.
 
@@ -163,7 +163,7 @@ identities rather than issuing new ones.
 Only when nothing in `pfandwerk generators` fits — a domain value with its own rules, or
 anything derived from another column.
 
-1. Add the entry to `src/Pfandwerk.Core/Generation/PatchGenerators.cs`:
+1. Add the entry to `src/Pfandwerk/Generators.cs`:
 
 ```csharp
 // random: ephemeral and identity

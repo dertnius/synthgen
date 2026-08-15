@@ -92,7 +92,7 @@ predicate into SQL, so SCAN, PLAN and VERIFY cannot disagree about what a gap is
 derived rule it also selects the `inputs` columns.
 
 ```jsonc
-// artifacts/gaps.json
+// the rows plan.json is built from
 {
   "runId": "2026-08-15T13:02:11Z-a4f1",
   "rules": [
@@ -167,7 +167,7 @@ human looks at it. That is what makes the SHA-256 approval mean something.
 }
 ```
 
-`plan.sha256` is written alongside it.
+The hash is recomputed on demand rather than stored; `plan.approved` records the one that was approved.
 
 > **Spec refinement this forced.** VERIFY layer 1 was specified as "planned rules must be 0
 > gaps". Row 104 is still a gap afterwards, which would exit 10 on a correct run. L1
