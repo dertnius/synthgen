@@ -28,7 +28,8 @@ try
         "revert" => Verbs.Revert(opts),
         "notary" => Verbs.Notary(opts),
         "fallback" => Verbs.Fallback(opts),
-        _ => Fail($"unknown verb '{opts.Verb}'. Try: fixture guard scan plan approve apply verify facts audit fallback notary revert"),
+        "generators" => Verbs.Generators(opts),
+        _ => Fail($"unknown verb '{opts.Verb}'. Try: fixture guard scan plan approve apply verify facts audit fallback notary revert generators"),
     };
 }
 catch (GapRulesLoadException ex) { return Fail(ex.Message, ExitCodes.ConfigError); }

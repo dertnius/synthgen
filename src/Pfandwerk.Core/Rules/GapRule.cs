@@ -1,3 +1,4 @@
+using Pfandwerk.Core.Generation;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -126,6 +127,21 @@ public static class GapRulesLoader
                 throw new GapRulesLoadException(
                     $"Rule '{r.Id}': 'inputs' and 'onMissingInput' apply only to derived rules.");
             }
+
+            // Resolve the generator now, not when a row first happens to match. A typo'd
+            // fix key would otherwise sit dormant until the day the data goes bad, which is
+            // precisely the day nobody wants to debug the rules file.
+            var derived = PatchGenerators.IsDerived(r.Fix);
+            if (r.ParsedKind == RuleKind.Derived && !derived)
+                throw new GapRulesLoadException(
+                    $"Rule '{r.Id}': '{r.Fix}' is not a derived generator. " +
+                    $"Available: {string.Join(", ", PatchGenerators.DerivedKeys)}");
+            if (r.ParsedKind != RuleKind.Derived && derived)
+                throw new GapRulesLoadException(
+                    $"Rule '{r.Id}': '{r.Fix}' is a derived generator and needs kind: derived.");
+            if (!derived && !PatchGenerators.RandomKeys.Contains(r.Fix, StringComparer.OrdinalIgnoreCase))
+                throw new GapRulesLoadException(
+                    $"Rule '{r.Id}': unknown fix key '{r.Fix}'. Run `pfandwerk generators` for the list.");
 
             GapPredicateValidator.Validate(r);
         }

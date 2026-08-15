@@ -174,3 +174,50 @@ public class GapQueryTests
         Assert.Contains("IN ('A-1')", GapQuery.RemainingAmong(Derived, new[] { "A-1" }));
     }
 }
+
+public class FixKeyValidationTests
+{
+    private static string Yaml(string kind, string fix, string extra = "") => $"""
+        rules:
+          - id: X-001
+            table: dbo.Security
+            key: PropertyId
+            column: Bathrooms
+            kind: {kind}
+            gap: "Bathrooms IS NULL"
+            fix: {fix}
+            threshold: 10
+            reason: because
+        {extra}
+        """;
+
+    [Fact]
+    public void An_unknown_fix_key_fails_at_load_not_when_a_row_first_matches()
+    {
+        // Lazily resolving the generator meant a typo stayed dormant until the day the data
+        // went bad — the worst possible day to be debugging the rules file.
+        var ex = Assert.Throws<GapRulesLoadException>(
+            () => GapRulesLoader.Load(Yaml("ephemeral", "not.a.generator")));
+        Assert.Contains("unknown fix key", ex.Message);
+    }
+
+    [Fact]
+    public void A_derived_generator_on_a_random_rule_is_rejected()
+    {
+        var ex = Assert.Throws<GapRulesLoadException>(
+            () => GapRulesLoader.Load(Yaml("ephemeral", "security.bathroomsFromRooms")));
+        Assert.Contains("needs kind: derived", ex.Message);
+    }
+
+    [Fact]
+    public void A_random_generator_on_a_derived_rule_is_rejected()
+    {
+        var ex = Assert.Throws<GapRulesLoadException>(
+            () => GapRulesLoader.Load(Yaml("derived", "internet.email", "    inputs: [Rooms]")));
+        Assert.Contains("not a derived generator", ex.Message);
+    }
+
+    [Fact]
+    public void A_synthgen_faker_key_is_accepted_without_pfandwerk_redeclaring_it() =>
+        GapRulesLoader.Load(Yaml("ephemeral", "internet.email"));
+}

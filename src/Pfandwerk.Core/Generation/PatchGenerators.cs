@@ -48,6 +48,13 @@ public static class PatchGenerators
 
     public static bool IsDerived(string key) => DerivedMap.ContainsKey(key);
 
+    /// <summary>Every usable `fix` key, so a rule author can check before writing YAML.</summary>
+    public static IEnumerable<string> RandomKeys =>
+        RandomMap.Keys.Concat(FakerMap.KnownMethods).OrderBy(k => k, StringComparer.OrdinalIgnoreCase);
+
+    public static IEnumerable<string> DerivedKeys =>
+        DerivedMap.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase);
+
     public static object Random(string key, Faker faker)
     {
         if (RandomMap.TryGetValue(key, out var fn)) return fn(faker);

@@ -346,6 +346,23 @@ public static class Verbs
         return ExitCodes.Ok;
     }
 
+    /// <summary>
+    /// Lists every usable `fix` key. A rule naming a key that is not here fails at load,
+    /// and adding one is a code change through a reviewed MR (hard rule 9) — the rule file
+    /// can never carry a literal value itself.
+    /// </summary>
+    public static int Generators(Options o)
+    {
+        Console.WriteLine("Random generators — for kind: ephemeral and identity");
+        foreach (var k in PatchGenerators.RandomKeys) Console.WriteLine($"  {k}");
+        Console.WriteLine();
+        Console.WriteLine("Derived generators — for kind: derived (declare `inputs`)");
+        foreach (var k in PatchGenerators.DerivedKeys) Console.WriteLine($"  {k}");
+        Console.WriteLine();
+        Console.WriteLine("Need one that is not listed? Add it to PatchGenerators and open an MR.");
+        return ExitCodes.Ok;
+    }
+
     /// <summary>The notary. No database, no Copilot — committed artifacts only.</summary>
     public static int Notary(Options o)
     {
