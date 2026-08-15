@@ -1,0 +1,66 @@
+# pfandwerk gap rules
+#
+# Each rule describes one bad-data pattern and how to repair it. Changing this file
+# requires a reviewed MR (hard rule 9), and the person who approves a run must not be the
+# person who last changed these rules — the CI notary enforces that.
+#
+# Fields
+#   id         stable rule id, referenced by every artifact and the report
+#   table      the ONLY table this rule may touch; gap predicates referencing any other
+#              table are rejected at load time by AST inspection (hard rule 4)
+#   key        column(s) identifying a row — a list for composite keys
+#   column     the column to patch
+#   kind       ephemeral = regenerated per gap-fill and not tracked
+#              identity  = generated once, written to the ledger, frozen forever
+#   gap        SQL boolean predicate selecting bad rows. Parsed with ScriptDom; multiple
+#              statements, statement terminators, and cross-table references are rejected
+#   fix        key into the generator whitelist — the only source of values (hard rule 1)
+#   threshold  if more rows than this match, the rule is BLOCKED and the gate refuses
+#   reason     why this data is bad. Copied verbatim into plan-summary.md and report.md
+#
+# NOTE for P3a: none of the three `fix` keys below exist yet. SynthGen's FakerMap is a map
+# of Bogus *faker methods* (name.firstName, commerce.color, …) and carries no domain
+# generators. pfandwerk therefore needs its own whitelist that composes FakerMap and adds
+# these three entries. Adding them is a code change and so goes through a reviewed MR,
+# exactly as hard rule 9 requires — the rule file cannot carry literal values itself.
+
+rules:
+  - id: PROP-001
+    table: dbo.Property
+    key: PropertyId
+    column: EnergyClass
+    kind: ephemeral
+    gap: "EnergyClass IS NULL OR EnergyClass = 'X9'"
+    fix: property.energyClass
+    threshold: 500
+    reason: >-
+      The upstream valuation interface writes the sentinel 'X9' when its energy-rating
+      lookup times out, and NULL when the source record predates the rating scheme.
+      Consumer tests filter and group by EnergyClass, so both values break them.
+
+  - id: PROP-002
+    table: dbo.Property
+    key: PropertyId
+    column: YearBuilt
+    kind: ephemeral
+    gap: "YearBuilt IS NULL OR YearBuilt = 0"
+    fix: property.yearBuilt
+    threshold: 500
+    reason: >-
+      The import maps an absent construction year to 0 rather than NULL. Age arithmetic in
+      the consumer suite then produces two-thousand-year-old buildings, which fails the
+      range assertions rather than the null checks.
+
+  - id: PROP-003
+    table: dbo.Property
+    key: PropertyId
+    column: SecurityId
+    kind: identity
+    gap: "SecurityId IS NULL"
+    fix: property.securityId
+    threshold: 50
+    reason: >-
+      Securitised properties require a SecurityId that downstream systems treat as a stable
+      external reference. Rows arriving without one cannot be matched across systems. Values
+      generated here are recorded in the ledger and reused forever, so a run never issues a
+      second identifier for the same property.
