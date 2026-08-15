@@ -23,6 +23,38 @@ guarantee evaporates.
 
 ---
 
+## 0. Optional — survey the database first
+
+New tables you have not written rules for yet? Profile them before writing anything:
+
+```bash
+pfandwerk survey --tables dbo.House,dbo.Apartment   # omit --tables to survey everything
+```
+
+```
+SURVEY dbo.House                    200 rows, 6 columns, 5 unruled column(s) with signals
+         SecurityId         5% NULL
+         Bathrooms          33% NULL; '2' in 50% of non-NULL rows — dominant
+         MiddleName         50% NULL; single value across the whole table
+```
+
+Read-only: it writes `artifacts/survey.json` and touches no data. It reports **observations,
+never verdicts** — `EnergyClass is 25% NULL` is a fact, `EnergyClass is broken` is your
+judgement.
+
+An agent can then draft rules from it for you to correct:
+
+```bash
+copilot -p prompts/draft-rules.md \
+  --available-tools=shell,write --allow-all-tools \
+  --add-dir "$PWD/rules/drafts" --deny-url --no-color
+```
+
+Drafts land in `rules/drafts/` and are **not rules**. You edit them down and move what
+survives into `rules/gaps.yaml` yourself. The agent cannot choose `kind` or `threshold` for
+you — those are the one-way doors — and a draft still has to clear predicate validation,
+schema validation, the threshold and the gate before anything changes.
+
 ## 1. Check whether a generator already exists
 
 ```

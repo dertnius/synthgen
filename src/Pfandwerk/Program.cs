@@ -9,7 +9,7 @@ namespace Pfandwerk;
 public static class Program
 {
     private const string Usage =
-        "usage: pfandwerk <plan|approve|apply|verify|report|notary|revert|generators> [options]";
+        "usage: pfandwerk <survey|plan|approve|apply|verify|report|notary|revert|generators> [options]";
 
     public static int Main(string[] args)
     {
@@ -20,6 +20,7 @@ public static class Program
         {
             return o.Verb switch
             {
+                "survey" => Survey(o),
                 "plan" => Plan(o),
                 "approve" => Approve(o),
                 "apply" => Apply(o),
@@ -55,18 +56,7 @@ public static class Program
         var rules = o.LoadRules();
         var db = o.Db();
 
-        if (o.Provider == Provider.Sqlite)
-        {
-            // SQLite fixtures are files, not servers; the allowlist is a SQL Server concept.
-            Console.WriteLine($"GUARD ok (sqlite fixture: {o.Target})");
-        }
-        else
-        {
-            var allow = ConnectionAllowlist.Load(o.Allowlist);
-            if (!allow.IsAllowed(o.Target, ledger: false, out var t)) return Fail(t, ExitCodes.AllowlistMismatch);
-            if (!allow.IsAllowed(o.Ledger, ledger: true, out var l)) return Fail(l, ExitCodes.AllowlistMismatch);
-            Console.WriteLine($"GUARD ok (target {t}; ledger {l})");
-        }
+        if (Guard(o) is { } refused) return refused;
 
         var ledger = new LedgerRepository(db);
         ledger.EnsureCreated();
@@ -88,6 +78,58 @@ public static class Program
         Console.WriteLine($"PLAN baseline: {baseline.Invariants.Count(i => !i.Passed)} invariant, " +
                           $"{baseline.Consumer.Count(c => !c.Passed)} consumer already failing");
         Console.WriteLine($"PLAN sha256 {Json.Sha256File(o.Path("plan.json"))}");
+        return ExitCodes.Ok;
+    }
+
+    /// <summary>
+    /// Hard rule 5. Returns null when the connection is permitted, or the exit code to
+    /// return when it is not. Both `plan` and `survey` run it — anything that opens the
+    /// target database goes through here first.
+    /// </summary>
+    private static int? Guard(Options o)
+    {
+        if (o.Provider == Provider.Sqlite)
+        {
+            // SQLite fixtures are files, not servers; the allowlist is a SQL Server concept.
+            Console.WriteLine($"GUARD ok (sqlite fixture: {o.Target})");
+            return null;
+        }
+        var allow = ConnectionAllowlist.Load(o.Allowlist);
+        if (!allow.IsAllowed(o.Target, ledger: false, out var t))
+            return Fail(t, ExitCodes.AllowlistMismatch);
+        if (!allow.IsAllowed(o.Ledger, ledger: true, out var l))
+            return Fail(l, ExitCodes.AllowlistMismatch);
+        Console.WriteLine($"GUARD ok (target {t}; ledger {l})");
+        return null;
+    }
+
+    // ---------------------------------------------------------------- SURVEY
+
+    /// <summary>
+    /// Read-only profile of the target, for drafting rules against tables nobody has
+    /// written rules for yet. It writes no rule and changes no data — it reports what the
+    /// columns look like and lets a person, helped by an agent, decide what that means.
+    /// </summary>
+    private static int Survey(Options o)
+    {
+        if (Guard(o) is { } refused) return refused;
+
+        // Every rule, not the --only subset: coverage must reflect the whole rule file or
+        // the survey would invite a draft for a column that already has a rule.
+        var allRules = GapRulesLoader.LoadFile(o.Rules).Rules;
+        var survey = new Surveyor(o.Db(), allRules).Survey(o.Tables);
+        Json.Write(o.Path("survey.json"), survey);
+
+        foreach (var t in survey.Tables)
+        {
+            var flagged = t.Columns.Where(c => c.CoveredByRule is null && c.Signals.Count > 0).ToList();
+            Console.WriteLine($"SURVEY {t.Table,-24} {t.Rows,7} rows, {t.Columns.Count} columns, " +
+                              $"{flagged.Count} unruled column(s) with signals");
+            foreach (var c in flagged)
+                Console.WriteLine($"         {c.Name,-18} {string.Join("; ", c.Signals)}");
+        }
+        Console.WriteLine($"SURVEY -> {o.Path("survey.json")}   " +
+                          "(observations only; no rule is written and no data changed)");
         return ExitCodes.Ok;
     }
 
@@ -275,6 +317,8 @@ public sealed class Options
     public bool Yes;
     /// <summary>Run only these rule ids. Everything else is left untouched.</summary>
     public List<string>? Only;
+    /// <summary>survey only: which tables to profile. Distinct from --only, which names rule ids.</summary>
+    public List<string>? Tables;
     /// <summary>sql (default, transactional) or dab (REST, for sites mandating an API layer).</summary>
     public string Sink = "sql";
     public string DabUrl = "http://localhost:5000";
@@ -286,7 +330,7 @@ public sealed class Options
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("usage: pfandwerk <plan|approve|apply|verify|report|notary|revert|generators> [options]");
+            Console.Error.WriteLine("usage: pfandwerk <survey|plan|approve|apply|verify|report|notary|revert|generators> [options]");
             return null;
         }
         var o = new Options { Verb = args[0] };
@@ -305,6 +349,8 @@ public sealed class Options
                 case "--seed": o.Seed = int.Parse(Next()); break;
                 case "--only": o.Only = Next().Split(',', StringSplitOptions.RemoveEmptyEntries)
                                               .Select(x => x.Trim()).ToList(); break;
+                case "--tables": o.Tables = Next().Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                                   .Select(x => x.Trim()).ToList(); break;
                 case "--sink": o.Sink = Next(); break;
                 case "--dab-url": o.DabUrl = Next(); break;
                 case "--yes": o.Yes = true; break;
