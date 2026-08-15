@@ -123,6 +123,10 @@
   figure { margin: 1rem 0; }
   figcaption { font-size: .8rem; color: var(--ink-soft); margin-top: .5rem; }
   svg { max-width: 100%; height: auto; display: block; }
+  /* On a narrow screen a diagram that scales to fit becomes unreadable rather than
+     unavailable. Below this width it overflows instead and the .scroll wrapper takes over,
+     which keeps the labels at a size a person can actually read. */
+  .scroll > svg { min-width: 34rem; }
   .legend { display: flex; flex-wrap: wrap; gap: 1.1rem; font-size: .82rem; margin: .75rem 0 0; }
   .legend span { display: flex; align-items: center; gap: .4rem; }
   .swatch { width: .85rem; height: .85rem; border-radius: 3px; display: inline-block; }
@@ -431,7 +435,7 @@ HeatingType  varchar(16)  NULL   ← ephemeral</code></pre>
   <summary><span class="tag t-code">deterministic</span> <code>pfandwerk plan</code> — guard, scan, freeze</summary>
   <div class="body">
 <pre><code>./run.ps1 -Only HOU-001,HOU-002,HOU-003,APT-001,APT-002,APT-003</code></pre>
-    <p>Three things happen, in order, with no model anywhere near them:</p>
+    <p>Four things happen, in order, with no model anywhere near them:</p>
     <ol>
       <li><strong>Guard</strong> — the connection must match <code>allowlist.json</code> on
         server, database and auth mode, or the run stops at exit 4 having touched nothing.</li>
@@ -439,6 +443,9 @@ HeatingType  varchar(16)  NULL   ← ephemeral</code></pre>
         code path, and executed.</li>
       <li><strong>Freeze</strong> — every value is generated <em>now</em> and written into
         <code>plan.json</code> as a literal.</li>
+      <li><strong>Cross-check</strong> — any rule carrying an <code>invariant</code> is
+        compared against it, and the disagreement recorded in <code>plan.json</code> for the
+        gate to print. <a href="#coverage">Section 5</a> draws what it finds.</li>
     </ol>
 <pre><code>PLAN HOU-001   OK       31 gaps,  29 to patch, 2 skipped, 0 new identities
 PLAN HOU-002   OK       12 gaps,  12 to patch, 0 skipped, 12 new identities
@@ -685,8 +692,119 @@ pfandwerk revert --only HOU-001   # one rule</code></pre>
   other kinds do not.
 </p>
 
+<!-- ────────────────────────────────────────────────────────── coverage ── -->
+<h2 id="coverage">5 · Does the rule select what you meant?</h2>
+
+<p>
+  Everything so far validates a rule's <em>shape</em>: it parses, its columns exist, its
+  generator resolves, it stays under its threshold. <code>SignedDate IS NULL</code> and
+  <code>SignedDate IS NULL AND Status = 'active'</code> pass every one of those and mean
+  different things.
+</p>
+<p>
+  A rule carrying an <code>invariant</code> has stated its intent twice, so the two can be
+  compared — and that comparison is the only check that looks at the <em>data</em> rather than
+  at the schema. The picture has five regions rather than four because SQL is three-valued: an
+  invariant can say broken, say fine, or say nothing at all.
+</p>
+
+<figure>
+<div class="scroll">
+<svg viewBox="0 0 820 400" role="img" aria-label="A matrix of gap selection against invariant verdict. Four cells: rows the gap selects that the invariant calls broken are the work; rows it selects that the invariant calls fine are too broad; rows it does not select that the invariant calls broken are too narrow; rows it does not select that the invariant calls fine are left alone. Beneath, a dashed band spanning both columns holds the rows the invariant cannot judge at all.">
+  <g font-family="ui-sans-serif, system-ui, sans-serif">
+
+    <g text-anchor="middle" fill="var(--ink-soft)">
+      <text x="350" y="30" font-size="11.5" font-weight="700" letter-spacing=".7">invariant says BROKEN</text>
+      <text x="350" y="46" font-size="10">NOT (invariant) is TRUE</text>
+      <text x="665" y="30" font-size="11.5" font-weight="700" letter-spacing=".7">invariant says FINE</text>
+      <text x="665" y="46" font-size="10">invariant is TRUE</text>
+    </g>
+
+    <g text-anchor="end" font-size="12" fill="var(--ink)">
+      <text x="185" y="104" font-weight="700">gap SELECTS</text>
+      <text x="185" y="120">the row</text>
+      <text x="185" y="219" font-weight="700">gap does NOT</text>
+      <text x="185" y="235">select it</text>
+    </g>
+
+    <g stroke-width="1.5">
+      <rect x="200" y="60"  width="300" height="100" rx="6" fill="var(--code-bg2)"  stroke="var(--code)"/>
+      <rect x="515" y="60"  width="300" height="100" rx="6" fill="var(--human-bg)" stroke="var(--human)"/>
+      <rect x="200" y="175" width="300" height="100" rx="6" fill="var(--human-bg)" stroke="var(--human)"/>
+      <rect x="515" y="175" width="300" height="100" rx="6" fill="var(--code-bg2)"  stroke="var(--code)"/>
+      <rect x="200" y="295" width="615" height="70"  rx="6" fill="var(--human-bg)" stroke="var(--human)"
+            stroke-dasharray="5 4"/>
+    </g>
+
+    <g text-anchor="middle">
+      <text x="350" y="98"  font-size="15" font-weight="700" fill="var(--code)">the work</text>
+      <text x="350" y="120" font-size="11.5" fill="var(--ink-soft)">patched this run</text>
+
+      <text x="665" y="98"  font-size="15" font-weight="700" fill="var(--human)">too broad</text>
+      <text x="665" y="120" font-size="11.5" fill="var(--ink-soft)">would overwrite good data</text>
+      <text x="665" y="142" font-size="10.5" font-family="ui-monospace, monospace" fill="var(--human)">selected but valid</text>
+
+      <text x="350" y="213" font-size="15" font-weight="700" fill="var(--human)">too narrow</text>
+      <text x="350" y="235" font-size="11.5" fill="var(--ink-soft)">stays broken, unreported</text>
+      <text x="350" y="257" font-size="10.5" font-family="ui-monospace, monospace" fill="var(--human)">uncovered violation</text>
+
+      <text x="665" y="213" font-size="15" font-weight="700" fill="var(--code)">left alone</text>
+      <text x="665" y="235" font-size="11.5" fill="var(--ink-soft)">correct as it stands</text>
+    </g>
+
+    <text x="220" y="320" font-size="15" font-weight="700" fill="var(--human)">the invariant cannot say</text>
+    <text x="795" y="320" font-size="10.5" font-family="ui-monospace, monospace" text-anchor="end"
+          fill="var(--human)">indeterminate</text>
+    <text x="220" y="340" font-size="11.5" fill="var(--ink-soft)">A NULL in a column it references. Neither TRUE nor FALSE, so NOT (invariant) returns</text>
+    <text x="220" y="356" font-size="11.5" fill="var(--ink-soft)">neither — and verify never sees these rows at all.</text>
+
+    <text x="410" y="388" font-size="10.5" text-anchor="middle" fill="var(--ink-soft)">
+      “gap does NOT select it” also holds rows where the gap is itself UNKNOWN — which is why the query excludes by key, not by NOT (gap)
+    </text>
+  </g>
+</svg>
+</div>
+<figcaption>
+  <strong>plan</strong> computes all five regions and prints the three amber ones as
+  <code>COVERAGE</code> at the gate. <strong>verify</strong> layer 2 only ever asks about the
+  left column — and cannot see the band beneath at all, which is the discrepancy this exists
+  to surface.
+</figcaption>
+</figure>
+
+<div class="legend">
+  <span><i class="swatch" style="background:var(--code)"></i> correct as it stands</span>
+  <span><i class="swatch" style="background:var(--human)"></i> yours to judge — advisory, never blocks</span>
+</div>
+
+<p style="margin-top:1.25rem">Three of the five regions are worth printing, and the gate prints them:</p>
+
+<div class="scroll">
+<table>
+  <tr><th>region</th><th>what the gate says</th></tr>
+  <tr>
+    <td><strong>too narrow</strong></td>
+    <td><code>N rows breaking the invariant but not selected by the gap</code> — broken by your own definition and this run will not repair them. Sometimes correct; sometimes a missing <code>OR</code>.</td>
+  </tr>
+  <tr>
+    <td><strong>too broad</strong></td>
+    <td><code>N rows selected by the gap but already satisfying the invariant</code> — this run would overwrite data that was fine.</td>
+  </tr>
+  <tr>
+    <td><strong>cannot say</strong></td>
+    <td><code>N rows the invariant cannot evaluate</code> — the fix is a NULL-safe invariant, leading with <code>Column IS NOT NULL AND …</code>, not different data.</td>
+  </tr>
+</table>
+</div>
+
+<p style="margin-bottom:0">
+  All three are <strong>advisory</strong>: they print, they land in <code>plan.json</code>, and
+  they never block. A row whose inputs are unusable is a legitimate member of <em>too narrow</em>,
+  and a run that refused to proceed because one exists would be wrong.
+</p>
+
 <!-- ────────────────────────────────────────────────────────── branches ── -->
-<h2>5 · When it does not go straight through</h2>
+<h2>6 · When it does not go straight through</h2>
 
 <div class="cards">
   <div class="card">
@@ -746,7 +864,7 @@ pfandwerk revert --only HOU-001   # one rule</code></pre>
 </div>
 
 <!-- ──────────────────────────────────────────────────────────── recap ── -->
-<h2>6 · What each party can and cannot do</h2>
+<h2>7 · What each party can and cannot do</h2>
 
 <div class="scroll">
 <table>
@@ -756,6 +874,7 @@ pfandwerk revert --only HOU-001   # one rule</code></pre>
   <tr><td>Decides which rows are broken</td><td>✓</td><td></td><td></td></tr>
   <tr><td>Decides the kind and threshold</td><td>✓</td><td></td><td></td></tr>
   <tr><td>Finds the matching rows</td><td></td><td>✓</td><td></td></tr>
+  <tr><td>Measures whether a rule selects what you meant</td><td></td><td>✓</td><td></td></tr>
   <tr><td>Produces the values</td><td></td><td>✓</td><td></td></tr>
   <tr><td>Approves</td><td>✓</td><td></td><td></td></tr>
   <tr><td>Writes to the database</td><td></td><td>✓</td><td></td></tr>
