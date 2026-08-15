@@ -150,9 +150,10 @@ public static class Program
 
     private static int Apply(Options o)
     {
-        var applied = new Patcher(new SqlPatchSink(o.Db(), Environment.UserName), o.LoadRules())
+        var rules = o.LoadRules();
+        var applied = new Patcher(o.PatchSink(rules), rules)
             .Apply(o.Path("plan.json"), o.Path("plan.approved"), o.Path("patches.jsonl"));
-        Console.WriteLine($"APPLY {applied} rows patched -> {o.Path("patches.jsonl")}");
+        Console.WriteLine($"APPLY {applied} rows patched via {o.Sink} -> {o.Path("patches.jsonl")}");
         return ExitCodes.Ok;
     }
 
@@ -234,11 +235,10 @@ public static class Program
             if (Console.ReadLine()?.Trim() != "yes") { Console.WriteLine("not reverted."); return ExitCodes.Ok; }
         }
 
-        var db = o.Db();
-        var reverted = new Reverter(new SqlPatchSink(db, Environment.UserName), rules)
+        var reverted = new Reverter(o.PatchSink(rules), rules)
             .Revert(o.Path("patches.jsonl"), o.Only?.Count == 1 ? o.Only[0] : null);
         Console.WriteLine($"REVERT {reverted} value(s) restored; ledger untouched " +
-                          $"({new LedgerRepository(db).Count()} rows).");
+                          $"({new LedgerRepository(o.Db()).Count()} rows).");
         return ExitCodes.Ok;
     }
 
@@ -275,6 +275,9 @@ public sealed class Options
     public bool Yes;
     /// <summary>Run only these rule ids. Everything else is left untouched.</summary>
     public List<string>? Only;
+    /// <summary>sql (default, transactional) or dab (REST, for sites mandating an API layer).</summary>
+    public string Sink = "sql";
+    public string DabUrl = "http://localhost:5000";
 
     public string Path(string name) => System.IO.Path.Combine(Artifacts, name);
     public DbContext Db() => new(Provider, Target, Ledger);
@@ -302,6 +305,8 @@ public sealed class Options
                 case "--seed": o.Seed = int.Parse(Next()); break;
                 case "--only": o.Only = Next().Split(',', StringSplitOptions.RemoveEmptyEntries)
                                               .Select(x => x.Trim()).ToList(); break;
+                case "--sink": o.Sink = Next(); break;
+                case "--dab-url": o.DabUrl = Next(); break;
                 case "--yes": o.Yes = true; break;
                 default: Console.Error.WriteLine($"error: unknown option {args[i]}"); return null;
             }
@@ -311,6 +316,24 @@ public sealed class Options
         o.Ledger = string.IsNullOrEmpty(o.Ledger)
             ? Environment.GetEnvironmentVariable("PFANDWERK_LEDGER_CONNECTION") ?? o.Target : o.Ledger;
         return o;
+    }
+
+    /// <summary>
+    /// Both apply and revert build the sink here, so a run reverts through the same path
+    /// that applied it.
+    /// </summary>
+    public IPatchSink PatchSink(List<GapRule> rules)
+    {
+        if (string.Equals(Sink, "sql", StringComparison.OrdinalIgnoreCase))
+            return new SqlPatchSink(Db(), Environment.UserName);
+
+        if (!string.Equals(Sink, "dab", StringComparison.OrdinalIgnoreCase))
+            throw new GapRulesLoadException($"--sink must be 'sql' or 'dab', not '{Sink}'.");
+
+        var http = new HttpClient { BaseAddress = new Uri(DabUrl.TrimEnd('/') + "/") };
+        var sink = new DabPatchSink(http, Db(), Environment.UserName);
+        sink.EnsureReachable(rules);   // fail once, by URL, rather than on row one
+        return sink;
     }
 
     public List<GapRule> LoadRules()

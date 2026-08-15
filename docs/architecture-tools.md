@@ -18,18 +18,18 @@ is a consequence of that.
 | **Bogus** (`Faker`) | produces values for `ephemeral` and `identity` columns | **PLAN only** | no — generates in memory |
 | **xUnit** | invariant suite + consumer suite, both halves of the baseline diff | SCAN (baseline), VERIFY | yes, via the suites' own connections |
 | **GitHub Copilot CLI** | writes two narrative documents | PLAN (summary), REPORT | **no — denied by default** |
-| **Data API Builder (DAB)** | *optional* alternative write path | APPLY, REVERT — only if selected | yes, if used |
+| **Data API Builder (DAB)** | alternative write path, `--sink dab` | APPLY, REVERT — only if selected | yes, if used |
 
 Two of these deserve immediate qualification.
 
-**DAB is configured and validated, but not yet implemented** — see [`dab/`](../dab/README.md).
+**DAB is implemented and selectable with `--sink dab`** — see [`dab/`](../dab/README.md).
 `dab-config.json` was generated with the DAB CLI and passes `dab validate`, resolving
-`/api/Property` and `/api/Security`. `DabPatchSink` itself does not exist: `IPatchSink` has
-one real implementation, `SqlPatchSink`, plus a test fake.
+`/api/Property` and `/api/Security`; `DabPatchSink` writes through it.
 
-`SqlPatchSink` is the default because DAB cannot enrol the ledger write and the target write
-in one transaction (D12), so on a DAB path a ledger row would mean *reserved* rather than
-*applied*.
+`SqlPatchSink` remains the default because only it can enrol the ledger write and the target
+write in one transaction (D12). On the DAB path a ledger row means *reserved* rather than
+*applied*, and each row costs two HTTP round trips — a GET to read the previous value so the
+run stays revertible, then the PATCH.
 
 Two things the generated config had to be corrected for, both worth knowing if you
 regenerate it: DAB 2.0.10 enables an **MCP endpoint by default**, which would expose the
@@ -130,8 +130,9 @@ public interface IPatchSink
 
 - **`SqlPatchSink`** (default) — opens one transaction, INSERTs the ledger row when the
   rule is an identity, UPDATEs the target row, commits both or neither.
-- **`DabPatchSink`** — *not built*. Would issue a REST PATCH against a running `dab start`;
-  no transaction can span the ledger write there, so a ledger row would mean *reserved*.
+- **`DabPatchSink`** (`--sink dab`) — GET then PATCH against a running `dab start`. No
+  transaction can span the ledger write there, so a ledger row means *reserved* and
+  applied-state derives from `patches.jsonl`. A non-2xx aborts; it never falls back to SQL.
 - **A fake** — injected in tests to fail after the ledger write, proving the rollback
   leaves neither a ledger row nor a patched value. This is the same technique as
   `tests/SynthGen.Tests/Support/FakeTableLoader.cs`: the seam is one method, so a fake beats

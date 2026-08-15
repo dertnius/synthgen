@@ -43,7 +43,7 @@ report. Do not re-decide anything in §2 — those decisions are final. Never vi
 | D9 | Report audit is **deterministic C#** (`ReportAuditor`) against `facts.json`, run identically in the local loop and in CI. No LLM checker, no reject loop |
 | D10 | Environment guard = code-side allowlist matched on Server + Database + auth mode, canonically compared; abort on mismatch. Allowlist entries never contain passwords |
 | D11 | Rules change only via reviewed MR. The plan approver is never the rule author — the notary enforces this, it is not left to convention |
-| D12 | Write path is `IPatchSink`. `SqlPatchSink` (Microsoft.Data.SqlClient, transactional) is the default; `DabPatchSink` is the API-layer path for sites that mandate one. Both are built and tested; `dab/dab-config.json` is generated and `dab validate`-clean |
+| D12 | Write path is `IPatchSink`, selected with `--sink sql\|dab`. `SqlPatchSink` (Microsoft.Data.SqlClient, transactional) is the default; `DabPatchSink` is the API-layer path for sites that mandate one. Both are built and tested; `dab/dab-config.json` is generated and `dab validate`-clean |
 | D13 | Threat model is **accident and drift, not a malicious insider**. The notary verifies internal consistency of a file set one actor produced; it cannot catch coordinated edits to `patches.jsonl` and `facts.json` |
 | D14 | One concurrent run per target database. A ledger PK/UQ violation aborts with a named exit code and an actionable message |
 | D15 | Local-only Copilot. GitLab CI runs exactly one job: a deterministic artifact audit (notary) |
@@ -122,7 +122,7 @@ One project in `SynthGen.sln` plus its tests. Tools are **verbs on one CLI** —
 parsed invocation is what lets the agent permission layer allow exactly `pfandwerk <verb>`.
 
 ```
-src/Pfandwerk/              one project, six files
+src/Pfandwerk/              one project, seven files
 ├─ Program.cs               args, dispatch, the verbs' console output
 ├─ Rules.cs                 GapRule, loader, predicate validator, GapQuery
 ├─ Generators.cs            the two value whitelists

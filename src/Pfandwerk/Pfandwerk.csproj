@@ -10,6 +10,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Entity naming and JSON typing are implementation details worth testing directly
+         without making them part of the public surface. -->
+    <InternalsVisibleTo Include="Pfandwerk.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\SynthGen.Core\SynthGen.Core.csproj" />
     <ProjectReference Include="..\SynthGen.Sqlite\SynthGen.Sqlite.csproj" />
   </ItemGroup>

@@ -38,9 +38,15 @@ check, `pfandwerk plan`'s guard step does, and it runs first.
 ## Running it
 
 ```bash
-dab validate     # schema + entity resolution + a live connection test
-dab start        # serves REST on http://localhost:5000/api by default
+dab validate                                   # schema + entities + a live connection test
+dab start                                      # serves REST on http://localhost:5000/api
+
+# then, from the repo root:
+./run.ps1 -Sink dab                            # or -DabUrl http://host:port
+pfandwerk apply --sink dab --dab-url http://localhost:5000
 ```
+
+`--sink sql` is the default and is unaffected by any of this.
 
 `dab start` is a **foreground process for the duration of APPLY and REVERT**, and it is the
 operator's responsibility to start and stop it. Nothing in `run.ps1` launches it: a spine
@@ -62,14 +68,37 @@ falling back to SQL.
 
 ## How `DabPatchSink` uses it
 
-One `PATCH` per row, keyed by primary key:
+**Two** requests per row, not one:
 
 ```http
+GET /api/Security/PropertyId/104          # read the previous value
+
 PATCH /api/Security/PropertyId/104
 Content-Type: application/json
 
 { "SecurityId": "DE000R3X9T05" }
 ```
+
+The GET is not optional. `patches.jsonl` records what each column held beforehand, and
+without it a run cannot be reverted — DAB's PATCH response reflects the new state, not the
+old.
+
+Entity names are the unqualified table name: a rule on `dbo.Security` addresses the
+`Security` entity, which is how `dab add Security --source dbo.Security` was invoked. A
+missing entity is reported once, before any write, with the `dab add` command that fixes it.
+
+### Two limitations worth knowing
+
+**JSON is typed; plan.json stores strings.** Numeric-looking values are sent as JSON
+numbers and everything else as strings. That is wrong for a string column whose value
+happens to be all digits — `SqlPatchSink` has the same heuristic but the driver reconciles
+the mismatch and DAB's `request-body-strict` does not. Use `--sink sql` for such a column.
+
+**Single-column keys only.** DAB's composite-key route is `/api/E/K1/V1/K2/V2`; rules carry
+one `key`, so a composite key is refused with a clear message rather than half-supported.
+
+A non-2xx response aborts the run with the status and DAB's own error body. It never falls
+back to SQL: quietly taking the path your policy forbids would be worse than stopping.
 
 ## The constraint that keeps this optional
 

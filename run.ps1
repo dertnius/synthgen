@@ -10,8 +10,8 @@ with the human at the gate.
 Two things it does NOT do, both on purpose:
 
   * It never starts `dab start`. A spine that silently launched a database-facing server
-    would undo the guard phase that runs immediately before it. Start it yourself if you
-    are using the DAB write path.
+    would undo the guard phase that runs immediately before it. Start it yourself before
+    using -Sink dab; the run aborts naming the URL if nothing is listening.
   * It never runs Revert. Hard rule 7 keeps revert manual and out of any automation.
 
 The two Copilot steps are narrative only and run after the deterministic phase whose output
@@ -34,6 +34,14 @@ Comma-separated rule ids to run. Everything else is left untouched.
 Approve without prompting. For scripted demonstration runs — a real run wants a human
 reading the gate output.
 
+.PARAMETER Sink
+sql (default, one transaction covering the ledger and target writes) or dab (REST through a
+running Data API Builder, for sites whose policy requires an API layer). On the dab path a
+ledger row means reserved rather than applied — see dab/README.md.
+
+.PARAMETER DabUrl
+Base URL of the running DAB. Default http://localhost:5000.
+
 .PARAMETER NoAgents
 Skip both Copilot steps. No model spend; report.md falls back to the bare-facts rendering.
 
@@ -53,6 +61,8 @@ param(
     [string]$Target,
     [string]$Ledger,
     [string]$Only,
+    [ValidateSet('sql', 'dab')][string]$Sink = 'sql',
+    [string]$DabUrl,
     [string]$Artifacts = 'artifacts',
     [int]$Seed,
     [switch]$Yes,
@@ -67,6 +77,8 @@ try {
     if ($Target) { $common += @('--target', $Target) }
     if ($Ledger) { $common += @('--ledger', $Ledger) }
     if ($Only)   { $common += @('--only', $Only) }
+    if ($Sink)   { $common += @('--sink', $Sink) }
+    if ($DabUrl) { $common += @('--dab-url', $DabUrl) }
 
     $agentFlags = @(
         '--available-tools=shell,write', '--allow-all-tools',
