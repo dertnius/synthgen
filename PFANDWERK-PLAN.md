@@ -21,7 +21,8 @@ report. Do not re-decide anything in §2 — those decisions are final. Never vi
 - Consumers of the patched data: automated tests / CI only. Tests define quality; no realism or
   distribution work.
 - Stack: .NET 10 / C#, PowerShell 7, Bogus, xUnit, Dapper, ScriptDom, GitLab CI, GitHub Copilot CLI
-  (local). Data API Builder is an optional write path, not the default (D12).
+  (local), Data API Builder. DAB is a supported write path behind `IPatchSink`; `SqlPatchSink`
+  is the default because only it can span the ledger and target writes in one transaction (D12).
 - Constraint: Copilot CLI is not allowed to run in the GitLab pipeline. The whole agentic loop runs
   on the developer machine.
 - Constraint: the build must work on a restricted network. The fixture end-to-end runs offline on
@@ -42,7 +43,7 @@ report. Do not re-decide anything in §2 — those decisions are final. Never vi
 | D9 | Report audit is **deterministic C#** (`ReportAuditor`) against `facts.json`, run identically in the local loop and in CI. No LLM checker, no reject loop |
 | D10 | Environment guard = code-side allowlist matched on Server + Database + auth mode, canonically compared; abort on mismatch. Allowlist entries never contain passwords |
 | D11 | Rules change only via reviewed MR. The plan approver is never the rule author — the notary enforces this, it is not left to convention |
-| D12 | Write path is `IPatchSink`. `SqlPatchSink` (Microsoft.Data.SqlClient, transactional) is the default; `DabPatchSink` is optional for sites that mandate an API layer |
+| D12 | Write path is `IPatchSink`. `SqlPatchSink` (Microsoft.Data.SqlClient, transactional) is the default; `DabPatchSink` is the API-layer path for sites that mandate one. Both are built and tested; `dab/dab-config.json` is generated and `dab validate`-clean |
 | D13 | Threat model is **accident and drift, not a malicious insider**. The notary verifies internal consistency of a file set one actor produced; it cannot catch coordinated edits to `patches.jsonl` and `facts.json` |
 | D14 | One concurrent run per target database. A ledger PK/UQ violation aborts with a named exit code and an actionable message |
 | D15 | Local-only Copilot. GitLab CI runs exactly one job: a deterministic artifact audit (notary) |
@@ -61,7 +62,7 @@ left implicit.
 - **D3** — an append-only ledger written before a separate, non-transactional patch cannot express
   "reserved but not applied". A failed patch left a row that `UQ_Ledger_Value` locks forever,
   invisible to `patches.jsonl`, Revert and FactExtractor. One transaction removes the state class
-  entirely. On the optional `DabPatchSink`, where a spanning transaction is impossible, a ledger row
+  entirely. On `DabPatchSink`, where a spanning transaction is impossible, a ledger row
   means **reserved**, applied-state derives from `patches.jsonl`, and Planner treats a ledger hit as
   "reuse this value" without assuming the database holds it.
 - **D9** — §6.11 already required this check in C# for CI. An LLM checker doing mechanical
@@ -141,7 +142,7 @@ allowlist.json              permitted targets (dev/test only, no passwords)
 rules/gaps.yaml
 prompts/plan.md · prompts/report-maker.md
 db/pfandwerk/ledger.sql · fixtures/schema.sql · fixtures/broken-seed.sql · docker-compose.yml
-dab/dab-config.json         optional write path only
+dab/dab-config.json · dab/README.md    DAB write path (generated, dab validate-clean)
 hooks/pre-tool-use.ps1 · hooks/post-tool-use.ps1
 run.ps1 · approve.ps1 · run-report.ps1
 artifacts/                  gitignored except committed run outputs

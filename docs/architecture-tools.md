@@ -23,12 +23,21 @@ is a consequence of that.
 
 Two of these deserve immediate qualification.
 
-**DAB is not in the repo.** There is no DAB code, no `dab-config.json`, no package
-reference — only a mention in the plan. It is the optional `DabPatchSink` behind
-`IPatchSink`, for sites whose policy requires writes to pass through an API layer. The
-default `SqlPatchSink` is what ships, and it exists because DAB cannot hold a transaction
-across the ledger write and the target write. If you never enable DAB, nothing in pfandwerk
-misses it.
+**DAB is configured and validated** — see [`dab/`](../dab/README.md). `dab-config.json` was
+generated with the DAB CLI and passes `dab validate` ("the config satisfies the schema
+requirements"), resolving `/api/Property` and `/api/Security`. It backs `DabPatchSink`, the
+write path for sites whose policy requires writes through an API layer.
+
+`SqlPatchSink` remains the default because DAB cannot enrol the ledger write and the target
+write in one transaction (D12), so on the DAB path a ledger row means *reserved* rather
+than *applied*. Both sit behind `IPatchSink`; selecting one is configuration, not a code
+change.
+
+Two things the generated config had to be corrected for, both worth knowing if you
+regenerate it: DAB 2.0.10 enables an **MCP endpoint by default**, which would expose the
+target tables to any MCP client — including an agent — and it grants entity permissions
+broadly unless told otherwise. pfandwerk's config disables MCP and GraphQL and grants
+`read, update` only, so no code path through DAB can insert or delete a row.
 
 **Bogus runs at PLAN, never at APPLY.** This is the D2 decision made concrete. By the time
 `Patcher` runs, every value already exists as a literal inside `plan.json`, and that file's
