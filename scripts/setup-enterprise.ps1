@@ -228,15 +228,18 @@ if ($prompted.Count -gt 0 -and -not (Test-Path $localPath)) {
 # Prerequisites.
 $dotnetCmd = Get-Command dotnet -ErrorAction SilentlyContinue
 if (-not $dotnetCmd) {
-    Fail 3 'PREFLIGHT' '.NET SDK not found on PATH. Install .NET 8 from the corporate software catalog (SCCM/Intune/winget internal source); nothing in this repo can download it.'
+    Fail 3 'PREFLIGHT' '.NET SDK not found on PATH. Install .NET 10 (or newer) from the corporate software catalog (SCCM/Intune/winget internal source); nothing in this repo can download it.'
 }
+# Minimum, not exact: a newer SDK builds net10.0 fine, so pinning to one major
+# would fail machines that are simply ahead of the fleet.
+$MinSdkMajor = 10
 $sdks = & dotnet --list-sdks
-$has8 = $false
+$hasMinSdk = $false
 foreach ($line in $sdks) {
-    if ("$line" -match '^8\.') { $has8 = $true }
+    if ("$line" -match '^(\d+)\.' -and [int]$Matches[1] -ge $MinSdkMajor) { $hasMinSdk = $true }
 }
-if (-not $has8) {
-    Fail 3 'PREFLIGHT' ".NET 8 SDK not found (installed: $(($sdks | ForEach-Object { ($_ -split ' ')[0] }) -join ', ')). Install it from the corporate software catalog."
+if (-not $hasMinSdk) {
+    Fail 3 'PREFLIGHT' ".NET $MinSdkMajor SDK or newer not found (installed: $(($sdks | ForEach-Object { ($_ -split ' ')[0] }) -join ', ')). Install it from the corporate software catalog."
 }
 
 $condaTool = Find-CondaTool

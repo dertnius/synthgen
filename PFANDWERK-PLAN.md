@@ -20,7 +20,7 @@ report. Do not re-decide anything in §2 — those decisions are final. Never vi
   (example table: `dbo.Property`).
 - Consumers of the patched data: automated tests / CI only. Tests define quality; no realism or
   distribution work.
-- Stack: .NET 8 / C#, PowerShell 7, Bogus, xUnit, Dapper, ScriptDom, GitLab CI, GitHub Copilot CLI
+- Stack: .NET 10 / C#, PowerShell 7, Bogus, xUnit, Dapper, ScriptDom, GitLab CI, GitHub Copilot CLI
   (local). Data API Builder is an optional write path, not the default (D12).
 - Constraint: Copilot CLI is not allowed to run in the GitLab pipeline. The whole agentic loop runs
   on the developer machine.

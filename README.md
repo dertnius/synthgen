@@ -1,6 +1,6 @@
 # SynthGen — synthetic test data generator for SQL Server
 
-A .NET 8 CLI that turns a **CREATE TABLE DDL** plus a **YAML rules file** into bulk-loaded
+A .NET 10 CLI that turns a **CREATE TABLE DDL** plus a **YAML rules file** into bulk-loaded
 synthetic test data, then **validates** the result with queries defined next to the rules.
 Built for SQL Server 2019+ (parses with the official T-SQL 2019 grammar), designed to run
 non-interactively so it can back a skill in an agentic workflow.

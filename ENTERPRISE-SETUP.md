@@ -39,7 +39,7 @@ conda gets its channel/proxy/CA per-invocation.
 |---|---|
 | 0 | Environment proven working |
 | 2 | Profile/flag validation failure (missing value in `-NonInteractive`, bad mode/version) |
-| 3 | Prerequisite missing (.NET 8 SDK, conda/micromamba, offline feed) |
+| 3 | Prerequisite missing (.NET 10+ SDK, conda/micromamba, offline feed) |
 | 4 | `NuGet.config` exists and differs; re-run with `-Force` or reconcile |
 | 5 | Conda env provisioning failed |
 | 6 | `dotnet restore` failed |
