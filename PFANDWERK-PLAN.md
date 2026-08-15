@@ -365,8 +365,9 @@ Each step is asserted individually with its own evidence, not as one prose chain
    predicate, not by convention.
 5. Connection strings must match `allowlist.json` on Server + Database + auth mode, or the run
    aborts. Allowlist entries never contain passwords.
-6. Copilot CLI runs locally only; agent tool access is denied by default via the mechanism P0
-   establishes.
+6. Copilot CLI runs locally only; agent tool access is denied by default via the CLI's own
+   permission system — `--available-tools` for visibility, `--deny-tool` for exceptions,
+   `--add-dir` for filesystem scope, `--deny-url` for network. Not hooks: the CLI has none.
 7. Revert is never wired into CI.
 8. `report.md` ships only with `audit=pass` from `ReportAuditor`, or as the bare-facts fallback.
 9. Rules and the generator whitelist change only via reviewed MR, and the plan approver is never the
