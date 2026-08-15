@@ -106,6 +106,13 @@ public sealed class LedgerRepository
         return c.ExecuteScalar<int>("SELECT COUNT(*) FROM dbo.SyntheticLedger");
     }
 
+    /// <summary>Value already recorded for this row+column, or null if none.</summary>
+    public static string? Existing(IDbConnection conn, IDbTransaction? tx,
+                                   string table, string rowKey, string column) =>
+        conn.QueryFirstOrDefault<string>(
+            "SELECT Value FROM dbo.SyntheticLedger WHERE TargetTable=@t AND RowKey=@k AND ColumnName=@c",
+            new { t = table, k = rowKey, c = column }, tx);
+
     public static void Insert(IDbConnection conn, IDbTransaction? tx, LedgerEntry e, string createdBy) =>
         conn.Execute(
             """

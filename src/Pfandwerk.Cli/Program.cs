@@ -25,11 +25,15 @@ try
         "facts" => Verbs.Facts(opts),
         "audit" => Verbs.Audit(opts),
         "fixture" => Verbs.Fixture(opts),
-        _ => Fail($"unknown verb '{opts.Verb}'. Try: fixture guard scan plan approve apply verify facts audit"),
+        "revert" => Verbs.Revert(opts),
+        "notary" => Verbs.Notary(opts),
+        "fallback" => Verbs.Fallback(opts),
+        _ => Fail($"unknown verb '{opts.Verb}'. Try: fixture guard scan plan approve apply verify facts audit fallback notary revert"),
     };
 }
 catch (GapRulesLoadException ex) { return Fail(ex.Message, ExitCodes.ConfigError); }
 catch (PatchAbortedException ex) { return Fail(ex.Message, ExitCodes.ConfigError); }
+catch (LedgerConflictException ex) { return Fail(ex.Message, ExitCodes.LedgerConflict); }
 catch (Exception ex) { return Fail(ex.Message, ExitCodes.RuntimeError); }
 
 static int Fail(string message, int code = ExitCodes.ConfigError)

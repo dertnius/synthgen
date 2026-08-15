@@ -12,7 +12,17 @@ public sealed class PatchAbortedException : Exception
     public PatchAbortedException(string message) : base(message) { }
 }
 
-public sealed record PatchInstruction(GapRule Rule, string RowKey, string Value, string? Old);
+/// <summary>
+/// The ledger already records a different value for this row and column. Because ledger
+/// rows are never updated, this cannot be reconciled automatically (D14).
+/// </summary>
+public sealed class LedgerConflictException : Exception
+{
+    public LedgerConflictException(string message) : base(message) { }
+}
+
+/// <summary>A single column write. <paramref name="Value"/> is null when reverting to NULL.</summary>
+public sealed record PatchInstruction(GapRule Rule, string RowKey, string? Value, bool WriteLedger);
 
 /// <summary>
 /// Destination for a patch. SqlPatchSink is the default and the only one that can enrol
@@ -22,7 +32,8 @@ public sealed record PatchInstruction(GapRule Rule, string RowKey, string Value,
 /// </summary>
 public interface IPatchSink
 {
-    void Apply(PatchInstruction instruction);
+    /// <summary>Applies the write and returns the value the column held beforehand.</summary>
+    string? Apply(PatchInstruction instruction);
 }
 
 public sealed class SqlPatchSink : IPatchSink
@@ -32,9 +43,9 @@ public sealed class SqlPatchSink : IPatchSink
 
     public SqlPatchSink(DbContext db, string createdBy) => (_db, _createdBy) = (db, createdBy);
 
-    public void Apply(PatchInstruction i)
+    public string? Apply(PatchInstruction i)
     {
-        var isIdentity = i.Rule.ParsedKind == RuleKind.Identity;
+        var isIdentity = i.WriteLedger && i.Rule.ParsedKind == RuleKind.Identity;
         var sameDatabase = string.Equals(_db.TargetConnection, _db.LedgerConnection,
                                          StringComparison.OrdinalIgnoreCase);
 
@@ -42,10 +53,16 @@ public sealed class SqlPatchSink : IPatchSink
         using var tx = target.BeginTransaction();
         try
         {
+            // Read the previous value inside the transaction: without it patches.jsonl
+            // cannot be replayed backwards, and Revert has nothing to restore.
+            var old = target.ExecuteScalar(
+                $"SELECT {i.Rule.Column} FROM {i.Rule.Table} WHERE {i.Rule.Key} = @key",
+                new { key = Coerce(i.RowKey) }, tx);
+            var oldCanonical = old is null or DBNull ? null : Canonical.Format(old);
+
             if (isIdentity && sameDatabase)
             {
-                LedgerRepository.Insert(target, tx,
-                    new LedgerEntry(i.Rule.Table, i.RowKey, i.Rule.Column, i.Value, i.Rule.Id), _createdBy);
+                WriteLedgerRow(target, tx, i);
             }
             else if (isIdentity)
             {
@@ -53,25 +70,47 @@ public sealed class SqlPatchSink : IPatchSink
                 // the ledger row is written first and means "reserved". Applied-state comes
                 // from patches.jsonl.
                 using var ledger = _db.OpenLedger();
-                LedgerRepository.Insert(ledger, null,
-                    new LedgerEntry(i.Rule.Table, i.RowKey, i.Rule.Column, i.Value, i.Rule.Id), _createdBy);
+                WriteLedgerRow(ledger, null, i);
             }
 
             var updated = target.Execute(
                 GapQuery.Update(i.Rule, "@key", "@value"),
-                new { key = Coerce(i.RowKey), value = Coerce(i.Value) }, tx);
+                new { key = Coerce(i.RowKey), value = i.Value is null ? null : Coerce(i.Value) }, tx);
 
             if (updated != 1)
                 throw new PatchAbortedException(
                     $"Rule '{i.Rule.Id}': UPDATE for key {i.RowKey} affected {updated} rows, expected 1.");
 
             tx.Commit();
+            return oldCanonical;
         }
         catch
         {
             tx.Rollback();
             throw;
         }
+    }
+
+    /// <summary>
+    /// Appends the ledger row, unless it is already there. A run that reuses a frozen
+    /// identity — after a revert, or simply because the column was cleared upstream — must
+    /// not try to record it twice; the existing row is the whole reason the value came back.
+    /// A different recorded value is a real conflict and stops the run (D14).
+    /// </summary>
+    private void WriteLedgerRow(IDbConnection conn, IDbTransaction? tx, PatchInstruction i)
+    {
+        var existing = LedgerRepository.Existing(conn, tx, i.Rule.Table, i.RowKey, i.Rule.Column);
+        if (existing is not null)
+        {
+            if (!string.Equals(existing, i.Value, StringComparison.Ordinal))
+                throw new LedgerConflictException(
+                    $"Rule '{i.Rule.Id}': the ledger records {i.Rule.Column} = '{existing}' for " +
+                    $"{i.Rule.Key} {i.RowKey}, but this run would write '{i.Value}'. Ledger rows are " +
+                    "never updated, so this needs a human.");
+            return;
+        }
+        LedgerRepository.Insert(conn, tx,
+            new LedgerEntry(i.Rule.Table, i.RowKey, i.Rule.Column, i.Value!, i.Rule.Id), _createdBy);
     }
 
     /// <summary>Values round-trip through artifacts as strings; give the driver a number when it is one.</summary>
@@ -116,7 +155,7 @@ public sealed class Patcher
                 var rowKey = patch.Key[rule.Key];
                 try
                 {
-                    _sink.Apply(new PatchInstruction(rule, rowKey, patch.Value, null));
+                    var old = _sink.Apply(new PatchInstruction(rule, rowKey, patch.Value, WriteLedger: true));
                     applied++;
                     log.WriteLine(JsonSerializer.Serialize(new
                     {
@@ -124,7 +163,7 @@ public sealed class Patcher
                         rule = rule.Id,
                         id = patch.Key,
                         col = rule.Column,
-                        old = (string?)null,
+                        old,
                         @new = patch.Value,
                         reason = rule.Reason,
                     }, Json.Options.WriteIndented ? new JsonSerializerOptions(Json.Options) { WriteIndented = false } : Json.Options));

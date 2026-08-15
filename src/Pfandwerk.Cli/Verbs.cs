@@ -301,6 +301,61 @@ public static class Verbs
         return ExitCodes.Ok;
     }
 
+    /// <summary>
+    /// Local only, never CI (hard rule 7). Confirms interactively unless --yes, because
+    /// this rewrites rows a person already approved changing.
+    /// </summary>
+    public static int Revert(Options o)
+    {
+        var rules = LoadRules(o);
+        var entries = Reverter.ReadLog(o.Path("patches.jsonl"));
+        var scoped = o.Only is null ? entries
+            : entries.Where(e => o.Only.Contains(e.Rule, StringComparer.OrdinalIgnoreCase)).ToList();
+
+        Console.WriteLine($"REVERT would restore {scoped.Count} value(s), newest first:");
+        foreach (var e in Enumerable.Reverse(scoped).Take(10))
+            Console.WriteLine($"  {e.Rule}  {Fmt(e.Id)}  {e.Column}: {e.New ?? "NULL"} -> {e.Old ?? "NULL"}");
+        if (scoped.Count > 10) Console.WriteLine($"  … and {scoped.Count - 10} more");
+        Console.WriteLine("  Ledger rows are NOT deleted; a later run reuses the same identities.");
+
+        if (!o.Yes)
+        {
+            Console.Write("Revert? [yes/no] ");
+            if (Console.ReadLine()?.Trim() != "yes") { Console.WriteLine("not reverted."); return ExitCodes.Ok; }
+        }
+
+        var db = Db(o);
+        var reverted = new Reverter(new SqlPatchSink(db, Environment.UserName), rules)
+            .Revert(o.Path("patches.jsonl"), o.Only?.Count == 1 ? o.Only[0] : null);
+        Console.WriteLine($"REVERT {reverted} value(s) restored; ledger untouched ({new LedgerRepository(db).Count()} rows).");
+        return ExitCodes.Ok;
+    }
+
+    /// <summary>
+    /// Renders facts.json as a bare markdown table. Hard rule 8 allows exactly two things
+    /// to ship: a narrative that passed the audit, or this.
+    /// </summary>
+    public static int Fallback(Options o)
+    {
+        var facts = Json.Read<FactsDocument>(o.Path("facts.json"));
+        var path = o.Path("report.md");
+        File.WriteAllText(path, ReportAuditor.Fallback(facts));
+        Json.Write(o.Path("report.audit.json"),
+            new AuditDocument("fallback", new List<AuditViolation>()));
+        Console.WriteLine($"FALLBACK bare-facts report written to {path}");
+        return ExitCodes.Ok;
+    }
+
+    /// <summary>The notary. No database, no Copilot — committed artifacts only.</summary>
+    public static int Notary(Options o)
+    {
+        var audit = ArtifactAuditor.Audit(o.Artifacts, o.Rules, Directory.GetCurrentDirectory());
+        Json.Write(o.Path("notary.json"), audit);
+        Console.WriteLine($"NOTARY {audit.Verdict}");
+        foreach (var v in audit.Violations) Console.WriteLine($"  [{v.Kind}] {v.Detail}");
+        return audit.Verdict == "pass" ? ExitCodes.Ok : ExitCodes.ConfigError;
+    }
+
     private static string Fmt(Dictionary<string, string> key) =>
         string.Join(", ", key.Select(k => $"{k.Key} {k.Value}"));
 
