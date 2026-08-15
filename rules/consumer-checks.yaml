@@ -1,0 +1,21 @@
+# The consumer suite, as SQL assertions. Declared here rather than as xUnit tests so that
+# SCAN's baseline and VERIFY's comparison run through one code path — two implementations
+# would produce phantom regressions from test-id and ordering differences alone.
+#
+# Each check asserts a scalar equals `expected`.
+checks:
+  - name: Security.EfhBathroomsNotNull
+    query: "SELECT COUNT(*) FROM dbo.Security WHERE PropertyType = 'EFH' AND Bathrooms IS NULL"
+    expected: 0
+
+  - name: Security.SecurityIdPresent
+    query: "SELECT COUNT(*) FROM dbo.Security WHERE SecurityId IS NULL"
+    expected: 0
+
+  - name: Security.SecurityIdUnique
+    query: "SELECT COUNT(*) FROM (SELECT SecurityId FROM dbo.Security WHERE SecurityId IS NOT NULL GROUP BY SecurityId HAVING COUNT(*) > 1) d"
+    expected: 0
+
+  - name: Security.RowCountStable
+    query: "SELECT COUNT(*) FROM dbo.Security"
+    expected: 8
