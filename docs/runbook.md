@@ -164,6 +164,34 @@ For a `derived` rule the gate shows the inputs beside the outputs (`Rooms 7 -> 3
 `3` on its own is not something a person can check. For an `identity` rule it prints every
 value in full and marks it permanent.
 
+### If your rule has an `invariant`, read the COVERAGE block
+
+Everything else validates a rule's *shape* — it parses, its columns exist, its generator is
+real, it stays under its threshold. Coverage is the only thing that asks whether the
+predicate selects the rows you meant, by cross-checking the gap against the rule's own
+invariant. It appears only when there is something to say:
+
+```
+  COVERAGE
+    2 rows breaking the invariant but not selected by the gap — predicate may be too narrow
+      TenantId 14, 27
+    1 row the invariant cannot evaluate — a NULL in a column it references, silently passed by verify
+      TenantId 31
+```
+
+- **too narrow** — rows that are broken by your own definition and this run will not repair.
+  Sometimes correct (a row nothing can fix), sometimes a missing `OR` clause.
+- **too broad** — rows the gap selects that already satisfy the invariant. This run would
+  overwrite data that was fine.
+- **cannot evaluate** — a NULL makes the invariant UNKNOWN, and `NOT (invariant)` returns
+  neither true nor false for that row, so VERIFY layer 2 passes it in silence. The fix is to
+  make the invariant NULL-safe — lead with `Column IS NOT NULL AND …` — not to change the
+  data. `rules/gaps.yaml`'s `SEC-001` shows the guarded form.
+
+All three are **advisory**: they print, they land in `plan.json`, and they never block. A
+row whose inputs are unusable is a legitimate uncovered violation, and refusing that run
+would be wrong.
+
 ## 5. Read the outcome
 
 ```
@@ -179,6 +207,12 @@ consumer-suite regression · `4` connection not allowlisted · `5` ledger confli
 regression is something this run broke. A pre-existing failure was already failing when
 `plan` captured the baseline — it is listed, and it does not fail the run. If you see a
 pre-existing failure you did not expect, your data was already worse than you thought.
+
+**Layer 2 does not mean "every row was checked".** An invariant that goes UNKNOWN on a row
+is neither a pass nor a violation, so those rows are passed over. When there are any, the
+check's `detail` in `verify.json` says how many — `4 row(s) not evaluated: the invariant is
+UNKNOWN where a column it references is NULL`. A green layer 2 with that note is a weaker
+statement than a green one without it.
 
 Artifacts land in `artifacts/`: `plan.json`, `baseline.json`, `plan.approved`,
 `patches.jsonl`, `verify.json`, `facts.json`, `report.md`. Commit them if CI is to audit the

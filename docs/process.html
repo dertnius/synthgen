@@ -499,16 +499,28 @@ HOU-001  derived  dbo.House.Bathrooms   [OK]
 APT-001  derived  dbo.Apartment.Bathrooms   [OK]
     ApartmentId 9007 (Rooms 5) -&gt; 2
     ApartmentId 9011 (Rooms 3) -&gt; 1
+  COVERAGE
+    3 rows breaking the invariant but not selected by the gap — predicate may be too narrow
+      ApartmentId 9040, 9052, 9061
 
 Approve? [yes/no]</code></pre>
-    <p>Four things are in front of you, in order of how expensive they are to get wrong:</p>
+    <p>Five things are in front of you, in order of how expensive they are to get wrong:</p>
     <table>
       <tr><th>what</th><th>why it is shown that way</th></tr>
       <tr><td>Tier 1, in full</td><td>Permanent. Truncating the list would make the review theatre.</td></tr>
       <tr><td>Inputs beside outputs</td><td><code>3</code> alone is uncheckable. <code>Rooms 7 → 3</code> is checkable at a glance — and note the flat with 5 rooms gets 2 while the house with 7 gets 3, because the formulas differ.</td></tr>
       <tr><td>Skipped rows</td><td>Approving accepts that those stay broken. That is a decision, made by proceeding.</td></tr>
       <tr><td><code>[BLOCKED]</code></td><td>Any rule past its threshold refuses the whole run. Look before raising the number.</td></tr>
+      <tr><td><code>COVERAGE</code></td><td>The only line that checks the rule against the <em>data</em> rather than against the schema. Advisory — it never blocks.</td></tr>
     </table>
+    <div class="note det">
+      <strong>Coverage cross-checks the gap against the rule's own invariant</strong>, and
+      appears only when the two disagree. Rows broken by your definition that the gap does not
+      reach mean the predicate is too narrow; rows it selects that the invariant already accepts
+      mean it is too broad; rows the invariant cannot evaluate at all — a NULL in a column it
+      references — mean verify will pass them in silence. Every other check validates a rule's
+      shape. This is the one that asks whether it selects what you meant.
+    </div>
     <div class="note">
       <strong>Those are the real values.</strong> They were generated before you were asked and
       frozen into <code>plan.json</code>; the SHA-256 you approve covers them, and apply
@@ -545,7 +557,7 @@ target UPDATE                          ┘ or neither</code></pre>
     <table>
       <tr><th>layer</th><th>checks</th><th>exit if it fails</th></tr>
       <tr><td>L1</td><td>Every row the plan promised to patch no longer matches its predicate. Skipped rows are not in that set, so they cannot fail it.</td><td><code>10</code></td></tr>
-      <tr><td>L2</td><td>Each rule's invariant, across the <em>whole</em> table — not just patched rows.</td><td><code>20</code></td></tr>
+      <tr><td>L2</td><td>Each rule's invariant, across the <em>whole</em> table — not just patched rows. Every row the invariant can <em>judge</em>: see below.</td><td><code>20</code></td></tr>
       <tr><td>L3</td><td>The consumer suite.</td><td><code>30</code></td></tr>
     </table>
     <div class="note det">
@@ -553,6 +565,14 @@ target UPDATE                          ┘ or neither</code></pre>
       something this run broke — green before, red now. A pre-existing failure was already red
       when the baseline was captured: it is listed and it does not fail the run. Here the three
       rows with NULL <code>Rooms</code> keep both invariants red, and that is correct.
+    </div>
+    <div class="note">
+      <strong>A green L2 does not mean every row was checked.</strong> The query is
+      <code>NOT (invariant)</code>, and SQL is three-valued: a NULL in any column the invariant
+      references makes it UNKNOWN, which is neither a violation nor a pass, so the row is
+      skipped over. When that happens the check's <code>detail</code> in
+      <code>verify.json</code> says how many — <code>4 row(s) not evaluated</code>. The fix is a
+      NULL-safe invariant (<code>Column IS NOT NULL AND …</code>), not different data.
     </div>
     <p style="margin-bottom:0">Exit <code>0</code>. Writes <code>verify.json</code>.</p>
   </div>
@@ -690,6 +710,15 @@ pfandwerk revert --only HOU-001   # one rule</code></pre>
     <p style="font-size:.88rem;margin:0">
       A check that was green at baseline is now red. Exit <code>20</code> or <code>30</code>,
       and it stops. This is the only failure the run attributes to itself.
+    </p>
+  </div>
+  <div class="card">
+    <h3><span class="tag t-human">yours</span> Predicate may be too narrow</h3>
+    <p style="font-size:.88rem;margin:0">
+      <code>COVERAGE</code> at the gate: rows break the invariant that the gap does not select.
+      Advisory, unlike the stop-shaped cards here — it prints and the run continues,
+      because a row nothing can repair is a legitimate instance. Widen the predicate, or accept
+      it by approving.
     </p>
   </div>
   <div class="card">

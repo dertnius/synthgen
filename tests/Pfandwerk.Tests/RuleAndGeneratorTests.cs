@@ -171,6 +171,39 @@ public class GapQueryTests
         Assert.Contains("IN (101)", GapQuery.RemainingAmong(Derived, new[] { "101" }));
         Assert.Contains("IN ('A-1')", GapQuery.RemainingAmong(Derived, new[] { "A-1" }));
     }
+
+    private static readonly GapRule WithInvariant = new()
+    {
+        Id = "SEC-001", Table = "dbo.Security", Key = "PropertyId", Column = "Bathrooms",
+        Kind = "derived", Gap = "PropertyType = 'EFH' AND Bathrooms IS NULL",
+        Fix = "security.bathroomsFromRooms", Inputs = new List<string> { "Rooms" },
+        Invariant = "Bathrooms IS NOT NULL", Threshold = 500, Reason = "t",
+    };
+
+    [Fact]
+    public void The_coverage_queries_carry_both_of_the_rules_predicates()
+    {
+        Assert.Contains(WithInvariant.Invariant!, GapQuery.InvariantHolds(WithInvariant));
+
+        var uncovered = GapQuery.UncoveredViolations(WithInvariant);
+        Assert.Contains(WithInvariant.Invariant!, uncovered);
+        Assert.Contains(WithInvariant.Gap, uncovered);
+
+        var overBroad = GapQuery.SelectedButValid(WithInvariant);
+        Assert.Contains(WithInvariant.Invariant!, overBroad);
+        Assert.Contains(WithInvariant.Gap, overBroad);
+    }
+
+    [Fact]
+    public void Uncovered_excludes_the_gap_by_key_rather_than_by_negating_it()
+    {
+        // NOT (gap) is UNKNOWN wherever the predicate touches a NULL, which drops exactly
+        // the rows this query exists to find. Pinned in SQL so a later simplification to the
+        // obvious form fails here rather than in production silence.
+        var sql = GapQuery.UncoveredViolations(WithInvariant);
+        Assert.Contains($"{WithInvariant.Key} NOT IN (SELECT {WithInvariant.Key}", sql);
+        Assert.DoesNotContain($"NOT ({WithInvariant.Gap})", sql);
+    }
 }
 
 public class FixKeyValidationTests

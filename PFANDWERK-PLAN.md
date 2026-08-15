@@ -49,6 +49,7 @@ report. Do not re-decide anything in §2 — those decisions are final. Never vi
 | D15 | Local-only Copilot. GitLab CI runs exactly one job: a deterministic artifact audit (notary) |
 | D16 | Third rule kind `derived`: value is a pure function of other columns in the same row, declared in `inputs`. Separate whitelist `Func<IReadOnlyDictionary<string, object?>, object>` — the ephemeral signature is never widened. Carries `onMissingInput` (block \| floor, default block) and an optional full-table `invariant` |
 | D17 | VERIFY layer 1 compares against the **planned** row set, not the raw gap-predicate count. A row deliberately skipped is not a failure to close a gap |
+| D18 | Any rule carrying an `invariant` is cross-checked against it at PLAN time and the result printed at the gate: rows it rejects that the gap misses, rows the gap selects that it accepts, and rows it cannot evaluate. All three are **advisory** — printed and recorded, never blocking. VERIFY layer 2 additionally reports its unevaluated-row count, because `NOT (invariant)` passes those rows in silence |
 
 ### Why D2, D3, D9 and D12 read this way
 
@@ -80,6 +81,26 @@ left implicit.
 - **D17** — followed directly from the example. A derived rule whose `inputs` are unusable skips the
   row rather than guessing; that row is still a gap afterwards, and the original layer-1 wording
   ("planned rules must be 0 gaps") would have failed a correct run.
+- **D18** — every other check validates a rule's *shape*: it parses, its columns exist, its generator
+  resolves, it stays under its threshold. `SignedDate IS NULL` and `SignedDate IS NULL AND Status =
+  'active'` pass all of them and mean different things. The invariant is the only other statement of
+  intent in the rule, so comparing the two is the only available check on whether the predicate
+  selects what a person meant.
+
+  Building it surfaced a hole in a shipped check, which is now the more important half. Layer 2's
+  query is `NOT (invariant)`; under three-valued logic a row where the invariant is UNKNOWN — a NULL
+  in any column it references — is neither a violation nor a pass, and disappears. On a six-row
+  fixture: `TRUE 2 · FALSE 3 · INDETERMINATE 1`, with the indeterminate row absent from the reported
+  violations. Layer 2 has been reporting green on rows it never judged. The counterpart on the query
+  side is that "not selected by the gap" must be `key NOT IN (SELECT key … WHERE gap)` rather than
+  `NOT (gap)`, for exactly the same reason — pinned by test, because the naive form looks obviously
+  equivalent.
+
+  Advisory rather than blocking: `SEC-001`'s row 104 has an unusable input, so no rule can repair it,
+  and a run that refused to proceed would be wrong. Making indeterminate rows fail layer 2 is
+  arguably more honest and is deliberately deferred — it would newly fail runs that pass today the
+  moment a NULL appears in a referenced column, and the fix is to rewrite the invariant, not the
+  data. Surface it first, see how often it fires.
 
 ## 3. Architecture
 

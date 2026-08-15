@@ -71,10 +71,23 @@ public sealed record SkippedRow(Dictionary<string, string> Key, string Why, stri
 
 public sealed record NewIdentity(Dictionary<string, string> Key, string Value);
 
+/// <summary>
+/// How well a rule's gap predicate lines up with its invariant. Null when the rule declares
+/// no invariant, because there is then nothing to cross-check against.
+///
+/// <para>All three are advisory. Row 104 of the shipped Security fixture is a legitimate
+/// uncovered violation — its inputs are unusable, so no rule can repair it — and refusing
+/// that run would be wrong.</para>
+/// </summary>
+public sealed record RuleCoverage(
+    int UncoveredViolations, List<string> UncoveredKeys,
+    int SelectedButValid, List<string> SelectedButValidKeys,
+    int Indeterminate, List<string> IndeterminateKeys);
+
 public sealed record RulePlan(string Id, string Table, string Column, string Kind,
                               string Status, int Count, int Threshold, string Reason,
                               List<PlannedPatch> Patches, List<SkippedRow> Skipped,
-                              List<NewIdentity> NewIdentities);
+                              List<NewIdentity> NewIdentities, RuleCoverage? Coverage = null);
 
 public sealed record PlanDocument(string RunId, string RulesSha, List<RulePlan> Rules);
 

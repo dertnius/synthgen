@@ -246,6 +246,33 @@ public static class GapQuery
     public static string InvariantViolations(GapRule rule) =>
         $"SELECT {rule.Key} FROM {rule.Table} WHERE NOT ({rule.Invariant}) ORDER BY {rule.Key}";
 
+    /// <summary>Rows the invariant positively holds for. Needed to count the rest.</summary>
+    public static string InvariantHolds(GapRule rule) =>
+        $"SELECT {rule.Key} FROM {rule.Table} WHERE ({rule.Invariant}) ORDER BY {rule.Key}";
+
+    /// <summary>
+    /// Rows that break the invariant but the gap does not select — the predicate is too
+    /// narrow to reach a defect it claims to repair.
+    ///
+    /// <para>Uses <c>key NOT IN (gap set)</c> rather than <c>NOT (gap)</c> on purpose.
+    /// <c>NOT (gap)</c> is UNKNOWN wherever the predicate touches a NULL, so exactly the
+    /// rows worth surfacing would vanish from the result. The subquery returns only rows
+    /// where the gap is definitely TRUE, and the key column is non-null by definition,
+    /// which makes NOT IN safe here.</para>
+    /// </summary>
+    public static string UncoveredViolations(GapRule rule) =>
+        $"SELECT {rule.Key} FROM {rule.Table} WHERE NOT ({rule.Invariant}) " +
+        $"AND {rule.Key} NOT IN (SELECT {rule.Key} FROM {rule.Table} WHERE {rule.Gap}) " +
+        $"ORDER BY {rule.Key}";
+
+    /// <summary>
+    /// Rows the gap selects that already satisfy the invariant — the predicate is too broad
+    /// and this run would patch rows that were fine.
+    /// </summary>
+    public static string SelectedButValid(GapRule rule) =>
+        $"SELECT {rule.Key} FROM {rule.Table} WHERE ({rule.Gap}) AND ({rule.Invariant}) " +
+        $"ORDER BY {rule.Key}";
+
     public static string Update(GapRule rule, string keyParam, string valueParam) =>
         $"UPDATE {rule.Table} SET {rule.Column} = {valueParam} WHERE {rule.Key} = {keyParam}";
 

@@ -39,12 +39,47 @@ public static class CheckRunner
         return results;
     }
 
-    /// <summary>One check per rule that declares an invariant: zero violating rows.</summary>
+    /// <summary>
+    /// One check per rule that declares an invariant: zero violating rows.
+    ///
+    /// <para>Note what this cannot see. The query is <c>NOT (invariant)</c>, so a row where
+    /// the invariant evaluates to UNKNOWN — a NULL in any column it references — is neither
+    /// returned nor counted, and layer 2 passes it. `plan` reports that count as
+    /// `coverage.indeterminate`; this check does not.</para>
+    /// </summary>
     public static List<Check> Invariants(IEnumerable<GapRule> rules) =>
         rules.Where(r => !string.IsNullOrWhiteSpace(r.Invariant))
              .Select(r => new Check($"{r.Id}.invariant",
                  $"SELECT COUNT(*) FROM ({GapQuery.InvariantViolations(r)}) v", 0))
              .ToList();
+}
+
+/// <summary>
+/// Rows a rule's invariant can neither confirm nor deny, because a column it references is
+/// NULL on that row.
+///
+/// <para>There is no SQL expression for "this evaluated to UNKNOWN" — <c>NOT (X OR NOT X)</c>
+/// is itself UNKNOWN. Counting the rows the predicate says TRUE for, the rows it says FALSE
+/// for, and subtracting from the table is the only provider-neutral way to find them. PLAN
+/// reports the count as coverage; VERIFY puts it on the layer-2 result, because
+/// <c>NOT (invariant)</c> passes these rows in silence.</para>
+/// </summary>
+public static class Indeterminate
+{
+    public static (int Count, List<string> Keys) Rows(IDbConnection conn, GapRule rule, int samples)
+    {
+        var total = conn.ExecuteScalar<int>($"SELECT COUNT(*) FROM {rule.Table}");
+        var judged = conn.Query<string>(GapQuery.InvariantHolds(rule))
+                         .Concat(conn.Query<string>(GapQuery.InvariantViolations(rule)))
+                         .ToHashSet(StringComparer.Ordinal);
+
+        var count = Math.Max(0, total - judged.Count);
+        var keys = count == 0 || samples == 0
+            ? new List<string>()
+            : conn.Query<string>($"SELECT {rule.Key} FROM {rule.Table} ORDER BY {rule.Key}")
+                  .Where(k => !judged.Contains(k)).Take(samples).ToList();
+        return (count, keys);
+    }
 }
 
 /// <summary>
@@ -54,6 +89,9 @@ public static class CheckRunner
 /// </summary>
 public sealed class Planner
 {
+    /// <summary>Sample keys shown per finding, matching how the gate truncates tier 2.</summary>
+    private const int Samples = 5;
+
     private readonly DbContext _db;
     private readonly LedgerRepository _ledger;
     private readonly List<GapRule> _rules;
@@ -117,10 +155,32 @@ public sealed class Planner
             }
 
             plans.Add(new RulePlan(rule.Id, rule.Table, rule.Column, rule.Kind, status,
-                                   count, rule.Threshold, rule.Reason, patches, skipped, identities));
+                                   count, rule.Threshold, rule.Reason, patches, skipped, identities,
+                                   Coverage(conn, rule)));
         }
 
         return new PlanDocument(runId, rulesSha, plans);
+    }
+
+    /// <summary>
+    /// Cross-checks the gap predicate against the rule's own invariant. Everything else
+    /// validates a rule's shape; this is the only check that asks whether it selects the
+    /// rows a person meant.
+    ///
+    /// <para>Advisory throughout — it reports, the gate prints, nothing blocks.</para>
+    /// </summary>
+    private static RuleCoverage? Coverage(IDbConnection conn, GapRule rule)
+    {
+        if (string.IsNullOrWhiteSpace(rule.Invariant)) return null;
+
+        var uncovered = conn.Query<string>(GapQuery.UncoveredViolations(rule)).ToList();
+        var selectedValid = conn.Query<string>(GapQuery.SelectedButValid(rule)).ToList();
+        var (indeterminate, indeterminateKeys) = Indeterminate.Rows(conn, rule, Samples);
+
+        return new RuleCoverage(
+            uncovered.Count, uncovered.Take(Samples).ToList(),
+            selectedValid.Count, selectedValid.Take(Samples).ToList(),
+            indeterminate, indeterminateKeys);
     }
 
     /// <summary>
@@ -371,7 +431,7 @@ public sealed class Verifier
             }
         }
 
-        var invariants = CheckRunner.Run(_db, CheckRunner.Invariants(_rules));
+        var invariants = NoteUnjudgedRows(CheckRunner.Run(_db, CheckRunner.Invariants(_rules)));
         var consumer = CheckRunner.Run(_db, consumerChecks);
 
         var (invRegressions, invPreexisting) = Diff(baseline.Invariants, invariants);
@@ -382,6 +442,32 @@ public sealed class Verifier
             invRegressions.Concat(conRegressions).ToList(),
             invPreexisting.Concat(conPreexisting).ToList(),
             invariants, consumer, remaining);
+    }
+
+    /// <summary>
+    /// Layer 2 counts rows where <c>NOT (invariant)</c> is TRUE, which is not the same as
+    /// "every row was judged": a NULL in any column the invariant references makes it
+    /// UNKNOWN, and the row is neither counted nor reported. Say so on the result rather
+    /// than letting a green check imply a whole table was checked.
+    ///
+    /// <para>The note is advisory — <c>Passed</c> is untouched, so nothing that passes today
+    /// starts failing. The count is the same one PLAN prints as coverage.</para>
+    /// </summary>
+    private List<CheckResult> NoteUnjudgedRows(List<CheckResult> invariants)
+    {
+        using var conn = _db.OpenTarget();
+        return invariants.Select(result =>
+        {
+            var rule = _rules.FirstOrDefault(r => $"{r.Id}.invariant" == result.Name);
+            if (rule is null) return result;
+
+            var (count, _) = Indeterminate.Rows(conn, rule, samples: 0);
+            if (count == 0) return result;
+
+            var note = $"{count} row(s) not evaluated: the invariant is UNKNOWN where a column " +
+                       "it references is NULL";
+            return result with { Detail = result.Detail is null ? note : $"{result.Detail}; {note}" };
+        }).ToList();
     }
 
     /// <summary>

@@ -167,6 +167,7 @@ public static class Program
                 if (r.Patches.Count > 5) Console.WriteLine($"    … and {r.Patches.Count - 5} more");
             }
             foreach (var s in r.Skipped) Console.WriteLine($"  SKIPPED {Fmt(s.Key)}: {s.Why}  [{s.Policy}]");
+            PrintCoverage(r.Coverage);
             Console.WriteLine();
         }
 
@@ -297,6 +298,37 @@ public static class Program
         foreach (var k in PatchGenerators.DerivedKeys) Console.WriteLine($"  {k}");
         Console.WriteLine("\nNeed one that is not listed? Add it to Generators.cs and open an MR.");
         return ExitCodes.Ok;
+    }
+
+    /// <summary>
+    /// The only check that asks whether a rule selects the rows a person meant — everything
+    /// else validates its shape. Advisory: it never blocks, because a row whose inputs are
+    /// unusable is a legitimate uncovered violation and refusing that run would be wrong.
+    /// </summary>
+    private static void PrintCoverage(RuleCoverage? c)
+    {
+        if (c is null) return;
+        if (c.UncoveredViolations == 0 && c.SelectedButValid == 0 && c.Indeterminate == 0) return;
+
+        // Phrased as participles rather than finite verbs so one wording reads correctly for
+        // a single row and for many.
+        Console.WriteLine("  COVERAGE");
+        if (c.UncoveredViolations > 0)
+            Line(c.UncoveredViolations, c.UncoveredKeys,
+                 "breaking the invariant but not selected by the gap — predicate may be too narrow");
+        if (c.SelectedButValid > 0)
+            Line(c.SelectedButValid, c.SelectedButValidKeys,
+                 "selected by the gap but already satisfying the invariant — predicate may be too broad");
+        if (c.Indeterminate > 0)
+            Line(c.Indeterminate, c.IndeterminateKeys,
+                 "the invariant cannot evaluate — a NULL in a column it references, silently passed by verify");
+
+        static void Line(int count, List<string> keys, string what)
+        {
+            Console.WriteLine($"    {count} row{(count == 1 ? "" : "s")} {what}");
+            if (keys.Count > 0)
+                Console.WriteLine($"      {string.Join(", ", keys)}{(count > keys.Count ? $", … {count - keys.Count} more" : "")}");
+        }
     }
 
     private static string Fmt(Dictionary<string, string> key) =>
