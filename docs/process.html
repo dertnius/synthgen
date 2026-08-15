@@ -138,7 +138,8 @@
   The whole process, from noticing bad data to a run that can be audited and undone —
   worked on two new tables, <code>dbo.House</code> and <code>dbo.Apartment</code>.
   Colour tells you who acts: <span class="tag t-human">human</span>
-  <span class="tag t-code">deterministic code</span> <span class="tag t-ai">ai</span>.
+  <span class="tag t-code">deterministic code</span> <span class="tag t-ai">ai</span>. The AI
+  lane proposes; it never disposes.
 </p>
 
 <!-- ─────────────────────────────────────────────────────── the example ── -->
@@ -194,103 +195,107 @@ HeatingType  varchar(16)  NULL   ← ephemeral</code></pre>
 
 <figure>
 <div class="scroll">
-<svg viewBox="0 0 1080 400" role="img" aria-label="Swimlane diagram of the pfandwerk lifecycle across human, deterministic code and AI lanes">
+<svg viewBox="0 0 1220 400" role="img" aria-label="Swimlane diagram of the pfandwerk lifecycle across human, deterministic code and AI lanes">
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
       <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
     </marker>
   </defs>
 
-  <!-- lane bands -->
-  <rect x="0"  y="34"  width="1080" height="104" fill="var(--human-bg)" rx="6"/>
-  <rect x="0"  y="146" width="1080" height="104" fill="var(--code-bg2)" rx="6"/>
-  <rect x="0"  y="258" width="1080" height="104" fill="var(--ai-bg)"    rx="6"/>
+  <rect x="0" y="34"  width="1220" height="104" fill="var(--human-bg)" rx="6"/>
+  <rect x="0" y="146" width="1220" height="104" fill="var(--code-bg2)" rx="6"/>
+  <rect x="0" y="258" width="1220" height="104" fill="var(--ai-bg)"    rx="6"/>
 
   <text x="10" y="26"  font-size="11" font-weight="700" letter-spacing="1.2" fill="var(--human)">HUMAN</text>
   <text x="10" y="163" font-size="11" font-weight="700" letter-spacing="1.2" fill="var(--code)">DETERMINISTIC CODE</text>
-  <text x="10" y="275" font-size="11" font-weight="700" letter-spacing="1.2" fill="var(--ai)">AI · NARRATIVE ONLY</text>
+  <text x="10" y="275" font-size="11" font-weight="700" letter-spacing="1.2" fill="var(--ai)">AI · PROPOSES, NEVER DISPOSES</text>
 
   <g font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">
 
-    <!-- HUMAN lane -->
     <g fill="var(--surface)" stroke="var(--human)" stroke-width="1.5">
-      <rect x="18"  y="56" width="118" height="60" rx="6"/>
-      <rect x="156" y="56" width="118" height="60" rx="6"/>
-      <rect x="294" y="56" width="118" height="60" rx="6"/>
-      <rect x="570" y="56" width="118" height="60" rx="6"/>
-      <rect x="846" y="56" width="118" height="60" rx="6"/>
+      <rect x="18"  y="56" width="104" height="60" rx="6"/>
+      <rect x="378" y="56" width="104" height="60" rx="6"/>
+      <rect x="498" y="56" width="104" height="60" rx="6"/>
+      <rect x="738" y="56" width="104" height="60" rx="6"/>
+      <rect x="978" y="56" width="104" height="60" rx="6"/>
     </g>
     <g fill="var(--ink)" text-anchor="middle">
-      <text x="77"  y="80">notice bad</text><text x="77"  y="96">data</text>
-      <text x="215" y="80">write the</text><text x="215" y="96">rules</text>
-      <text x="353" y="80">generator MR</text><text x="353" y="96" font-size="10" fill="var(--ink-soft)">only if needed</text>
-      <text x="629" y="80" font-weight="700">THE GATE</text><text x="629" y="96" font-size="10" fill="var(--ink-soft)">yes / no</text>
-      <text x="905" y="80">read verify</text><text x="905" y="96" font-size="10" fill="var(--ink-soft)">decide next</text>
+      <text x="70"   y="80">notice bad</text><text x="70"   y="96">data</text>
+      <text x="430"  y="80">edit drafts,</text><text x="430"  y="96">write rules</text>
+      <text x="550"  y="80">generator MR</text><text x="550"  y="96" font-size="10" fill="var(--ink-soft)">only if needed</text>
+      <text x="790"  y="80" font-weight="700">THE GATE</text><text x="790" y="96" font-size="10" fill="var(--ink-soft)">yes / no</text>
+      <text x="1030" y="80">read verify</text><text x="1030" y="96" font-size="10" fill="var(--ink-soft)">decide next</text>
     </g>
 
-    <!-- CODE lane -->
     <g fill="var(--surface)" stroke="var(--code)" stroke-width="1.5">
-      <rect x="432" y="168" width="118" height="60" rx="6"/>
-      <rect x="708" y="168" width="118" height="60" rx="6"/>
-      <rect x="846" y="168" width="118" height="60" rx="6"/>
-      <rect x="984" y="168" width="80"  height="60" rx="6"/>
+      <rect x="138"  y="168" width="104" height="60" rx="6"/>
+      <rect x="618"  y="168" width="104" height="60" rx="6"/>
+      <rect x="858"  y="168" width="104" height="60" rx="6"/>
+      <rect x="978"  y="168" width="104" height="60" rx="6"/>
+      <rect x="1098" y="168" width="104" height="60" rx="6"/>
     </g>
     <g fill="var(--ink)" text-anchor="middle">
-      <text x="491" y="192" font-weight="700">plan</text>
-      <text x="491" y="208" font-size="10" fill="var(--ink-soft)">guard·scan·freeze</text>
-      <text x="767" y="192" font-weight="700">apply</text>
-      <text x="767" y="208" font-size="10" fill="var(--ink-soft)">the only write</text>
-      <text x="905" y="192" font-weight="700">verify</text>
-      <text x="905" y="208" font-size="10" fill="var(--ink-soft)">vs baseline</text>
-      <text x="1024" y="192" font-weight="700">notary</text>
-      <text x="1024" y="208" font-size="10" fill="var(--ink-soft)">in CI</text>
+      <text x="190"  y="192" font-weight="700">survey</text>
+      <text x="190"  y="208" font-size="10" fill="var(--ink-soft)">read-only profile</text>
+      <text x="670"  y="192" font-weight="700">plan</text>
+      <text x="670"  y="208" font-size="10" fill="var(--ink-soft)">guard·scan·freeze</text>
+      <text x="910"  y="192" font-weight="700">apply</text>
+      <text x="910"  y="208" font-size="10" fill="var(--ink-soft)">the only write</text>
+      <text x="1030" y="192" font-weight="700">verify</text>
+      <text x="1030" y="208" font-size="10" fill="var(--ink-soft)">vs baseline</text>
+      <text x="1150" y="192" font-weight="700">notary</text>
+      <text x="1150" y="208" font-size="10" fill="var(--ink-soft)">in CI</text>
     </g>
 
-    <!-- AI lane -->
     <g fill="var(--surface)" stroke="var(--ai)" stroke-width="1.5" stroke-dasharray="4 3">
-      <rect x="432" y="280" width="118" height="60" rx="6"/>
-      <rect x="846" y="280" width="118" height="60" rx="6"/>
+      <rect x="258" y="280" width="104" height="60" rx="6"/>
+      <rect x="618" y="280" width="104" height="60" rx="6"/>
+      <rect x="978" y="280" width="104" height="60" rx="6"/>
     </g>
     <g fill="var(--ink)" text-anchor="middle">
-      <text x="491" y="304">plan summary</text>
-      <text x="491" y="320" font-size="10" fill="var(--ink-soft)">optional</text>
-      <text x="905" y="304">report prose</text>
-      <text x="905" y="320" font-size="10" fill="var(--ink-soft)">then audited</text>
+      <text x="310"  y="304">draft rules</text>
+      <text x="310"  y="320" font-size="10" fill="var(--ink-soft)">a proposal</text>
+      <text x="670"  y="304">plan summary</text>
+      <text x="670"  y="320" font-size="10" fill="var(--ink-soft)">optional</text>
+      <text x="1030" y="304">report prose</text>
+      <text x="1030" y="320" font-size="10" fill="var(--ink-soft)">then audited</text>
     </g>
 
-    <!-- flow -->
     <g stroke="var(--ink-soft)" stroke-width="1.3" fill="none" marker-end="url(#a)" color="var(--ink-soft)">
-      <path d="M136 86 H150"/>
-      <path d="M274 86 H288"/>
-      <path d="M412 86 H424 Q432 86 432 100 V162"/>          <!-- author → plan -->
-      <path d="M550 198 H562 Q570 198 570 184 V122"/>         <!-- plan → gate -->
-      <path d="M688 86 H700 Q708 86 708 100 V162"/>           <!-- gate → apply -->
-      <path d="M826 198 H840"/>                               <!-- apply → verify -->
-      <path d="M964 198 H978"/>                               <!-- verify → notary -->
-      <path d="M905 168 V128"/>                               <!-- verify → human -->
-    </g>
-    <!-- AI is fed by code, and feeds nothing that writes -->
-    <g stroke="var(--ai)" stroke-width="1.2" fill="none" stroke-dasharray="3 3" marker-end="url(#a)" color="var(--ai)">
-      <path d="M491 234 V274"/>
-      <path d="M905 234 V274"/>
+      <path d="M122 86 H176 Q190 86 190 100 V162"/>
+      <path d="M482 86 H492"/>
+      <path d="M602 86 H656 Q670 86 670 100 V162"/>
+      <path d="M722 198 H776 Q790 198 790 184 V122"/>
+      <path d="M842 86 H896 Q910 86 910 100 V162"/>
+      <path d="M962 198 H972"/>
+      <path d="M1030 168 V122"/>
+      <path d="M1082 198 H1092"/>
     </g>
 
-    <text x="540" y="384" font-size="10.5" text-anchor="middle" fill="var(--ink-soft)">
-      dashed = reads an artifact and writes prose · never touches the database
+    <g stroke="var(--ai)" stroke-width="1.2" fill="none" stroke-dasharray="3 3" marker-end="url(#a)" color="var(--ai)">
+      <path d="M242 198 H296 Q310 198 310 212 V274"/>
+      <path d="M362 310 H416 Q430 310 430 296 V122"/>
+      <path d="M670 228 V274"/>
+      <path d="M1030 228 V274"/>
+    </g>
+
+    <text x="610" y="384" font-size="10.5" text-anchor="middle" fill="var(--ink-soft)">
+      dashed = reads an artifact, writes a file a person then edits or a checker then audits · never touches the database
     </text>
   </g>
 </svg>
 </div>
 <figcaption>
   Everything that changes data happens in one box: <strong>apply</strong>. Everything before it
-  reads; everything after it checks.
+  reads; everything after it checks. The AI lane has three boxes and none of them is on the
+  path to a write — each hands its output to a person or to a checker.
 </figcaption>
 </figure>
 
 <div class="legend">
   <span><i class="swatch" style="background:var(--human)"></i> human decides</span>
   <span><i class="swatch" style="background:var(--code)"></i> deterministic — no model</span>
-  <span><i class="swatch" style="background:var(--ai)"></i> AI — prose only</span>
+  <span><i class="swatch" style="background:var(--ai)"></i> AI — drafts and prose, never data</span>
 </div>
 
 <!-- ─────────────────────────────────────────────────── stage by stage ── -->
@@ -305,17 +310,74 @@ HeatingType  varchar(16)  NULL   ← ephemeral</code></pre>
   <summary><span class="tag t-human">human</span> Notice the bad data</summary>
   <div class="body">
     <p>
-      A consumer test fails, a DBA flags a column, an import looks wrong. <strong>Nothing in
-      pfandwerk discovers this for you</strong> — it finds rows matching a predicate somebody
-      already wrote, and has no schema-sweep or profiling step.
+      A consumer test fails, a DBA flags a column, an import looks wrong. <strong>pfandwerk
+      does not decide that anything is broken</strong> — it repairs rows matching a predicate
+      somebody wrote, and "this column is wrong" is a judgement, not a measurement.
     </p>
     <p>For the two tables: houses and flats are arriving with no security reference, no
       bathroom count, and no energy class or heating type.</p>
+    <p style="margin-bottom:0">
+      What it <em>can</em> do is show you the shape of the data so the judgement is informed —
+      that is the next stage.
+    </p>
   </div>
 </details>
 
 <details>
-  <summary><span class="tag t-human">human</span> Write the rules</summary>
+  <summary><span class="tag t-code">deterministic</span> <code>pfandwerk survey</code> — profile the tables</summary>
+  <div class="body">
+<pre><code>pfandwerk survey --tables dbo.House,dbo.Apartment   # omit --tables for everything</code></pre>
+<pre><code>SURVEY dbo.House       200 rows, 6 columns, 5 unruled column(s) with signals
+         SecurityId       5% NULL
+         Bathrooms        33% NULL; '2' in 50% of non-NULL rows — dominant
+         MiddleName       50% NULL; single value across the whole table</code></pre>
+    <p>
+      Read-only. It writes <code>survey.json</code> — per column: type, nullability, NULL rate,
+      distinct count, the most frequent values, and whether a rule already covers it.
+    </p>
+    <div class="note det">
+      <strong>Observations, never verdicts.</strong> <em>"EnergyClass is 25% NULL"</em> is a
+      measurement. <em>"EnergyClass is broken"</em> is a judgement, and judgement belongs to
+      whoever writes the rule and approves the run. The survey deliberately does not recognise
+      domain sentinels either — it cannot know that <code>'X9'</code> means anything, so it
+      reports the distribution and lets a person see the odd one out.
+    </div>
+    <p style="margin-bottom:0">
+      A key column says nothing, and a column an existing rule already covers is marked so
+      nobody drafts a second rule for it.
+    </p>
+  </div>
+</details>
+
+<details>
+  <summary><span class="tag t-ai">ai</span> Draft rules from the survey</summary>
+  <div class="body">
+<pre><code>copilot -p prompts/draft-rules.md \
+  --available-tools=shell,write --allow-all-tools \
+  --add-dir "$PWD/rules/drafts" --deny-url --no-color</code></pre>
+    <p>
+      Reads <code>survey.json</code>, writes proposals to <code>rules/drafts/</code>. This is
+      the one place an agent earns real leverage: writing thirty gap predicates for ten new
+      tables is the actual bottleneck. Generating <code>A+</code> never was.
+    </p>
+    <div class="note">
+      <strong>A draft is not a rule.</strong> The directory is gitignored, you edit the drafts
+      down, and you move what survives into <code>rules/gaps.yaml</code> yourself. The agent is
+      told to default to <code>ephemeral</code> and to justify any <code>identity</code>
+      proposal in a comment — but that is an instruction, not a boundary.
+    </div>
+    <p style="margin-bottom:0">
+      The boundary is what happens next: even after you move a rule across, it clears four
+      independent checks before a row changes — the predicate is parsed and rejected if it
+      references another table, the columns are validated against the live schema, the
+      threshold blocks an over-broad predicate, and you read the frozen values at the gate.
+      That is why an agent is allowed to draft here at all.
+    </p>
+  </div>
+</details>
+
+<details>
+  <summary><span class="tag t-human">human</span> Edit the drafts into rules</summary>
   <div class="body">
     <p>Six rules — three kinds across two tables. Only the two derived ones differ in substance:</p>
 <pre><code>- id: HOU-001                       - id: APT-001
@@ -660,6 +722,8 @@ pfandwerk revert --only HOU-001   # one rule</code></pre>
 <div class="scroll">
 <table>
   <tr><th></th><th>human</th><th>deterministic code</th><th>ai</th></tr>
+  <tr><td>Profiles the tables</td><td></td><td>✓</td><td></td></tr>
+  <tr><td>Drafts candidate rules</td><td></td><td></td><td>✓</td></tr>
   <tr><td>Decides which rows are broken</td><td>✓</td><td></td><td></td></tr>
   <tr><td>Decides the kind and threshold</td><td>✓</td><td></td><td></td></tr>
   <tr><td>Finds the matching rows</td><td></td><td>✓</td><td></td></tr>
