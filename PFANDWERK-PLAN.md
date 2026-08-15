@@ -46,6 +46,8 @@ report. Do not re-decide anything in §2 — those decisions are final. Never vi
 | D13 | Threat model is **accident and drift, not a malicious insider**. The notary verifies internal consistency of a file set one actor produced; it cannot catch coordinated edits to `patches.jsonl` and `facts.json` |
 | D14 | One concurrent run per target database. A ledger PK/UQ violation aborts with a named exit code and an actionable message |
 | D15 | Local-only Copilot. GitLab CI runs exactly one job: a deterministic artifact audit (notary) |
+| D16 | Third rule kind `derived`: value is a pure function of other columns in the same row, declared in `inputs`. Separate whitelist `Func<IReadOnlyDictionary<string, object?>, object>` — the ephemeral signature is never widened. Carries `onMissingInput` (block \| floor, default block) and an optional full-table `invariant` |
+| D17 | VERIFY layer 1 compares against the **planned** row set, not the raw gap-predicate count. A row deliberately skipped is not a failure to close a gap |
 
 ### Why D2, D3, D9 and D12 read this way
 
@@ -68,6 +70,15 @@ left implicit.
 - **D12** — DAB means per-row HTTP, a live `dab start` during both APPLY and Revert, and no
   transaction able to span the ledger write. It also breaks the offline fixture story. Behind an
   interface it stays available to sites that need it without being load-bearing for everyone.
+- **D16** — `Func<Faker, object>` has no access to the row, so no whitelist entry could ever produce
+  a value derived from a sibling column. The two maps stay separate rather than widening the
+  ephemeral signature: an ephemeral generator able to read the row would become silently
+  order-dependent, and its output would stop being reproducible from `plan.json` alone — the exact
+  property D2 exists to protect. Worked end-to-end in
+  `docs/example-security-bathrooms.md`.
+- **D17** — followed directly from the example. A derived rule whose `inputs` are unusable skips the
+  row rather than guessing; that row is still a gap afterwards, and the original layer-1 wording
+  ("planned rules must be 0 gaps") would have failed a correct run.
 
 ## 3. Architecture
 
@@ -363,6 +374,10 @@ Each step is asserted individually with its own evidence, not as one prose chain
 
 ## 10. Out of scope
 
-Auto-revert, realism/distribution tuning, cross-column coherence, production databases, scheduling or
-orchestration beyond `run.ps1`, multi-writer concurrency (D14), and defence against a malicious
-insider (D13).
+Auto-revert, realism/distribution tuning, production databases, scheduling or orchestration beyond
+`run.ps1`, multi-writer concurrency (D14), and defence against a malicious insider (D13).
+
+**Cross-column coherence was on this list and has been removed** — see D16. It was excluded on the
+assumption that every repaired value would be independently generated; the `dbo.Security` example
+(one bathroom per three rooms, minimum one) is a value derived from another column of the same row,
+so the exclusion no longer held.

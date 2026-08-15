@@ -12,17 +12,33 @@
 #   column     the column to patch
 #   kind       ephemeral = regenerated per gap-fill and not tracked
 #              identity  = generated once, written to the ledger, frozen forever
+#              derived   = computed from other columns of the SAME row; not random, not
+#                          tracked, and re-derivable at any time from the row itself
 #   gap        SQL boolean predicate selecting bad rows. Parsed with ScriptDom; multiple
 #              statements, statement terminators, and cross-table references are rejected
 #   fix        key into the generator whitelist — the only source of values (hard rule 1)
+#   inputs     derived rules only: the columns the generator reads. Scanner selects them,
+#              the gate displays them, and a row whose inputs are unusable is not patched
+#   onMissingInput   derived rules only: block (default) | floor
+#              block = list the row at the gate and leave it unpatched, so a human decides
+#              floor = patch it with the generator's documented minimum
+#   invariant  optional SQL boolean predicate that must hold for EVERY row of the table
+#              after the run, not only for patched rows. Checked in VERIFY layer 2
 #   threshold  if more rows than this match, the rule is BLOCKED and the gate refuses
 #   reason     why this data is bad. Copied verbatim into plan-summary.md and report.md
 #
-# NOTE for P3a: none of the three `fix` keys below exist yet. SynthGen's FakerMap is a map
-# of Bogus *faker methods* (name.firstName, commerce.color, …) and carries no domain
+# NOTE for P3a: none of the `fix` keys below exist yet. SynthGen's FakerMap is a map of
+# Bogus *faker methods* (name.firstName, commerce.color, …) and carries no domain
 # generators. pfandwerk therefore needs its own whitelist that composes FakerMap and adds
-# these three entries. Adding them is a code change and so goes through a reviewed MR,
-# exactly as hard rule 9 requires — the rule file cannot carry literal values itself.
+# these entries. Adding them is a code change and so goes through a reviewed MR, exactly as
+# hard rule 9 requires — the rule file cannot carry literal values itself.
+#
+# NOTE for P3a: derived rules need a SECOND whitelist. Func<Faker, object> cannot see the
+# row, so a derived generator's signature is Func<IReadOnlyDictionary<string, object?>,
+# object> over the columns named in `inputs`. Keep the two maps separate rather than
+# widening the ephemeral signature: an ephemeral generator that could read the row would
+# silently become order-dependent, and its output would stop being reproducible from the
+# plan alone.
 
 rules:
   - id: PROP-001
@@ -64,3 +80,46 @@ rules:
       external reference. Rows arriving without one cannot be matched across systems. Values
       generated here are recorded in the ledger and reused forever, so a run never issues a
       second identifier for the same property.
+
+  # --- dbo.Security ------------------------------------------------------------------
+  # Worked end-to-end in docs/example-security-bathrooms.md.
+
+  - id: SEC-001
+    table: dbo.Security
+    key: PropertyId
+    column: Bathrooms
+    kind: derived
+    gap: "PropertyType = 'EFH' AND Bathrooms IS NULL"
+    fix: security.bathroomsFromRooms
+    inputs: [Rooms]
+    onMissingInput: block
+    # NULL-safe by construction. Without the IS NOT NULL guard, `Bathrooms = <expr>`
+    # evaluates to UNKNOWN on exactly the rows this rule repairs, NOT(UNKNOWN) is UNKNOWN,
+    # and the violation query returns nothing — the invariant would report perfect health
+    # on entirely broken data.
+    invariant: >-
+      PropertyType <> 'EFH'
+      OR (Bathrooms IS NOT NULL
+          AND Bathrooms = CASE WHEN Rooms IS NULL OR Rooms < 1
+                               THEN 1 ELSE (Rooms + 2) / 3 END)
+    threshold: 500
+    reason: >-
+      An EFH is a single-family house and always has at least one bathroom, but the
+      interface omits the count when the floor-plan document is missing, leaving NULL.
+      Consumer tests treat bathroom count as non-nullable for EFH and fail on the NULL
+      before they reach any assertion. The count is not arbitrary: it follows from the
+      room count at one bathroom per three rooms, minimum one.
+
+  - id: SEC-002
+    table: dbo.Security
+    key: PropertyId
+    column: SecurityId
+    kind: identity
+    gap: "SecurityId IS NULL"
+    fix: security.securityId
+    threshold: 50
+    reason: >-
+      SecurityId is the stable external reference downstream systems match on. Rows
+      arriving without one cannot be joined across systems. Values generated here are
+      recorded in the ledger and reused forever, so a property is never issued a second
+      identifier.
