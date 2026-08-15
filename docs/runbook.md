@@ -3,6 +3,10 @@
 How a person takes a table with bad data and gets it repaired. Every command here was run
 against a real fixture while writing this; the output shown is the actual output.
 
+For the same thing drawn rather than described — including which steps are human, which are
+deterministic code and which are AI — open [`process.html`](process.html) in a browser or
+VS Code's preview.
+
 ## The short version
 
 ```bash

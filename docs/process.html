@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pfandwerk — bringing a new table under repair</title>
+<style>
+  /* Light is the base palette; dark redefines only the tokens. Nothing is defined
+     solely inside the media query, so a page opened in either VS Code theme is legible. */
+  :root {
+    --bg:        #fbfaf8;
+    --surface:   #ffffff;
+    --ink:       #1c1b19;
+    --ink-soft:  #5c5955;
+    --line:      #ddd8d0;
+    --code-bg:   #f4f1ec;
+
+    --human:     #b4531f;   /* every decision a person makes  */
+    --human-bg:  #fdf1e8;
+    --code:      #2f6b53;   /* deterministic, no model involved */
+    --code-bg2:  #e9f4ef;
+    --ai:        #4a4fa8;   /* narrative only, never writes data */
+    --ai-bg:     #eeeefa;
+    --danger:    #a3282a;
+    --danger-bg: #fdeced;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:        #16171a;
+      --surface:   #1e2024;
+      --ink:       #e8e6e3;
+      --ink-soft:  #a6a29c;
+      --line:      #34373d;
+      --code-bg:   #24262b;
+
+      --human:     #f0a06a;
+      --human-bg:  #33241a;
+      --code:      #74c9a3;
+      --code-bg2:  #172b23;
+      --ai:        #a0a4f0;
+      --ai-bg:     #23243c;
+      --danger:    #f08a8c;
+      --danger-bg: #351d1f;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1.25rem 5rem;
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.6 ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+    overflow-x: hidden;
+  }
+  main { max-width: 60rem; margin: 0 auto; }
+  h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 .35rem; letter-spacing: -.01em; }
+  h2 {
+    font-size: 1.15rem; margin: 3rem 0 .75rem; padding-bottom: .35rem;
+    border-bottom: 1px solid var(--line); letter-spacing: -.005em;
+  }
+  h3 { font-size: .95rem; margin: 1.5rem 0 .4rem; }
+  p  { margin: 0 0 .85rem; }
+  .lede { color: var(--ink-soft); margin-bottom: 2rem; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace; }
+  code { background: var(--code-bg); padding: .1em .35em; border-radius: 3px; font-size: .875em; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px;
+    padding: .85rem 1rem; overflow-x: auto; font-size: .8rem; line-height: 1.55; margin: .6rem 0;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  table { border-collapse: collapse; width: 100%; font-size: .875rem; margin: .6rem 0 1rem; }
+  th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; color: var(--ink-soft); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+  .scroll { overflow-x: auto; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; padding: 1rem 1.1rem;
+  }
+  .card h3 { margin-top: 0; }
+
+  .tag {
+    display: inline-block; font-size: .68rem; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; padding: .12rem .45rem; border-radius: 3px; vertical-align: .1em;
+  }
+  .t-human { background: var(--human-bg); color: var(--human); }
+  .t-code  { background: var(--code-bg2); color: var(--code); }
+  .t-ai    { background: var(--ai-bg);    color: var(--ai); }
+  .t-stop  { background: var(--danger-bg); color: var(--danger); }
+
+  details {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; margin: .5rem 0; overflow: hidden;
+  }
+  details[open] { border-color: var(--ink-soft); }
+  summary {
+    cursor: pointer; padding: .7rem 1rem; font-weight: 600; font-size: .92rem;
+    display: flex; gap: .6rem; align-items: baseline; list-style: none;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::before { content: "▸"; color: var(--ink-soft); font-size: .8em; }
+  details[open] summary::before { content: "▾"; }
+  summary:hover { background: var(--code-bg); }
+  .body { padding: 0 1rem 1rem; border-top: 1px solid var(--line); }
+  .body > :first-child { margin-top: .85rem; }
+
+  .controls { display: flex; gap: .5rem; margin: 1rem 0; }
+  button {
+    font: inherit; font-size: .82rem; padding: .3rem .7rem; cursor: pointer;
+    background: var(--surface); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 5px;
+  }
+  button:hover { border-color: var(--ink-soft); }
+
+  .note {
+    border-left: 3px solid var(--human); background: var(--human-bg);
+    padding: .7rem .95rem; border-radius: 0 5px 5px 0; margin: 1rem 0; font-size: .9rem;
+  }
+  .note.stop { border-left-color: var(--danger); background: var(--danger-bg); }
+  .note.det  { border-left-color: var(--code);   background: var(--code-bg2); }
+
+  figure { margin: 1rem 0; }
+  figcaption { font-size: .8rem; color: var(--ink-soft); margin-top: .5rem; }
+  svg { max-width: 100%; height: auto; display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 1.1rem; font-size: .82rem; margin: .75rem 0 0; }
+  .legend span { display: flex; align-items: center; gap: .4rem; }
+  .swatch { width: .85rem; height: .85rem; border-radius: 3px; display: inline-block; }
+  footer { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--line);
+           font-size: .82rem; color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Bringing a new table under repair</h1>
+<p class="lede">
+  The whole process, from noticing bad data to a run that can be audited and undone —
+  worked on two new tables, <code>dbo.House</code> and <code>dbo.Apartment</code>.
+  Colour tells you who acts: <span class="tag t-human">human</span>
+  <span class="tag t-code">deterministic code</span> <span class="tag t-ai">ai</span>.
+</p>
+
+<!-- ─────────────────────────────────────────────────────── the example ── -->
+<h2>1 · The two tables</h2>
+
+<p>
+  Both need the same three kinds of repair. The interesting part is that the
+  <strong>derived</strong> rule uses a different formula on each — which is precisely why a
+  rule declares exactly one table and its predicate is not allowed to reach outside it.
+</p>
+
+<div class="cards">
+  <div class="card">
+    <h3><code>dbo.House</code></h3>
+    <pre><code>HouseId      int          PK
+SecurityId   nvarchar(24) NULL   ← identity
+Rooms        int          NULL
+Bathrooms    int          NULL   ← derived
+EnergyClass  varchar(2)   NULL   ← ephemeral</code></pre>
+    <p style="font-size:.85rem;margin:0">
+      <code>Bathrooms = max(1, ceil(Rooms / 3))</code><br>
+      One bathroom minimum, one more per three rooms.
+    </p>
+  </div>
+  <div class="card">
+    <h3><code>dbo.Apartment</code></h3>
+    <pre><code>ApartmentId  int          PK
+SecurityId   nvarchar(24) NULL   ← identity
+Floor        int          NOT NULL
+Rooms        int          NULL
+Bathrooms    int          NULL   ← derived
+HeatingType  varchar(16)  NULL   ← ephemeral</code></pre>
+    <p style="font-size:.85rem;margin:0">
+      <code>Bathrooms = Rooms &gt;= 5 ? 2 : 1</code><br>
+      A flat rarely has three, however many rooms.
+    </p>
+  </div>
+</div>
+
+<p style="margin-top:1rem">
+  Each table also has one row whose <code>Rooms</code> is <code>NULL</code>. Those cannot be
+  derived, and the process is built to leave them alone rather than guess — you will see them
+  again at the gate and in verify.
+</p>
+
+<!-- ────────────────────────────────────────────────────────── the map ── -->
+<h2>2 · The lifecycle</h2>
+
+<p>
+  Read the lanes, not just the arrows. Which lane a box sits in <em>is</em> the answer to
+  who does that step.
+</p>
+
+<figure>
+<div class="scroll">
+<svg viewBox="0 0 1080 400" role="img" aria-label="Swimlane diagram of the pfandwerk lifecycle across human, deterministic code and AI lanes">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+
+  <!-- lane bands -->
+  <rect x="0"  y="34"  width="1080" height="104" fill="var(--human-bg)" rx="6"/>
+  <rect x="0"  y="146" width="1080" height="104" fill="var(--code-bg2)" rx="6"/>
+  <rect x="0"  y="258" width="1080" height="104" fill="var(--ai-bg)"    rx="6"/>
+
+  <text x="10" y="26"  font-size="11" font-weight="700" letter-spacing="1.2" fill="var(--human)">HUMAN</text>
+  <text x="10" y="163" font-size="11" font-weight="700" letter-spacing="1.2" fill="var(--code)">DETERMINISTIC CODE</text>
+  <text x="10" y="275" font-size="11" font-weight="700" letter-spacing="1.2" fill="var(--ai)">AI · NARRATIVE ONLY</text>
+
+  <g font-size="12" font-family="ui-sans-serif, system-ui, sans-serif">
+
+    <!-- HUMAN lane -->
+    <g fill="var(--surface)" stroke="var(--human)" stroke-width="1.5">
+      <rect x="18"  y="56" width="118" height="60" rx="6"/>
+      <rect x="156" y="56" width="118" height="60" rx="6"/>
+      <rect x="294" y="56" width="118" height="60" rx="6"/>
+      <rect x="570" y="56" width="118" height="60" rx="6"/>
+      <rect x="846" y="56" width="118" height="60" rx="6"/>
+    </g>
+    <g fill="var(--ink)" text-anchor="middle">
+      <text x="77"  y="80">notice bad</text><text x="77"  y="96">data</text>
+      <text x="215" y="80">write the</text><text x="215" y="96">rules</text>
+      <text x="353" y="80">generator MR</text><text x="353" y="96" font-size="10" fill="var(--ink-soft)">only if needed</text>
+      <text x="629" y="80" font-weight="700">THE GATE</text><text x="629" y="96" font-size="10" fill="var(--ink-soft)">yes / no</text>
+      <text x="905" y="80">read verify</text><text x="905" y="96" font-size="10" fill="var(--ink-soft)">decide next</text>
+    </g>
+
+    <!-- CODE lane -->
+    <g fill="var(--surface)" stroke="var(--code)" stroke-width="1.5">
+      <rect x="432" y="168" width="118" height="60" rx="6"/>
+      <rect x="708" y="168" width="118" height="60" rx="6"/>
+      <rect x="846" y="168" width="118" height="60" rx="6"/>
+      <rect x="984" y="168" width="80"  height="60" rx="6"/>
+    </g>
+    <g fill="var(--ink)" text-anchor="middle">
+      <text x="491" y="192" font-weight="700">plan</text>
+      <text x="491" y="208" font-size="10" fill="var(--ink-soft)">guard·scan·freeze</text>
+      <text x="767" y="192" font-weight="700">apply</text>
+      <text x="767" y="208" font-size="10" fill="var(--ink-soft)">the only write</text>
+      <text x="905" y="192" font-weight="700">verify</text>
+      <text x="905" y="208" font-size="10" fill="var(--ink-soft)">vs baseline</text>
+      <text x="1024" y="192" font-weight="700">notary</text>
+      <text x="1024" y="208" font-size="10" fill="var(--ink-soft)">in CI</text>
+    </g>
+
+    <!-- AI lane -->
+    <g fill="var(--surface)" stroke="var(--ai)" stroke-width="1.5" stroke-dasharray="4 3">
+      <rect x="432" y="280" width="118" height="60" rx="6"/>
+      <rect x="846" y="280" width="118" height="60" rx="6"/>
+    </g>
+    <g fill="var(--ink)" text-anchor="middle">
+      <text x="491" y="304">plan summary</text>
+      <text x="491" y="320" font-size="10" fill="var(--ink-soft)">optional</text>
+      <text x="905" y="304">report prose</text>
+      <text x="905" y="320" font-size="10" fill="var(--ink-soft)">then audited</text>
+    </g>
+
+    <!-- flow -->
+    <g stroke="var(--ink-soft)" stroke-width="1.3" fill="none" marker-end="url(#a)" color="var(--ink-soft)">
+      <path d="M136 86 H150"/>
+      <path d="M274 86 H288"/>
+      <path d="M412 86 H424 Q432 86 432 100 V162"/>          <!-- author → plan -->
+      <path d="M550 198 H562 Q570 198 570 184 V122"/>         <!-- plan → gate -->
+      <path d="M688 86 H700 Q708 86 708 100 V162"/>           <!-- gate → apply -->
+      <path d="M826 198 H840"/>                               <!-- apply → verify -->
+      <path d="M964 198 H978"/>                               <!-- verify → notary -->
+      <path d="M905 168 V128"/>                               <!-- verify → human -->
+    </g>
+    <!-- AI is fed by code, and feeds nothing that writes -->
+    <g stroke="var(--ai)" stroke-width="1.2" fill="none" stroke-dasharray="3 3" marker-end="url(#a)" color="var(--ai)">
+      <path d="M491 234 V274"/>
+      <path d="M905 234 V274"/>
+    </g>
+
+    <text x="540" y="384" font-size="10.5" text-anchor="middle" fill="var(--ink-soft)">
+      dashed = reads an artifact and writes prose · never touches the database
+    </text>
+  </g>
+</svg>
+</div>
+<figcaption>
+  Everything that changes data happens in one box: <strong>apply</strong>. Everything before it
+  reads; everything after it checks.
+</figcaption>
+</figure>
+
+<div class="legend">
+  <span><i class="swatch" style="background:var(--human)"></i> human decides</span>
+  <span><i class="swatch" style="background:var(--code)"></i> deterministic — no model</span>
+  <span><i class="swatch" style="background:var(--ai)"></i> AI — prose only</span>
+</div>
+
+<!-- ─────────────────────────────────────────────────── stage by stage ── -->
+<h2>3 · Stage by stage</h2>
+
+<div class="controls">
+  <button id="expand">Expand all</button>
+  <button id="collapse">Collapse all</button>
+</div>
+
+<details>
+  <summary><span class="tag t-human">human</span> Notice the bad data</summary>
+  <div class="body">
+    <p>
+      A consumer test fails, a DBA flags a column, an import looks wrong. <strong>Nothing in
+      pfandwerk discovers this for you</strong> — it finds rows matching a predicate somebody
+      already wrote, and has no schema-sweep or profiling step.
+    </p>
+    <p>For the two tables: houses and flats are arriving with no security reference, no
+      bathroom count, and no energy class or heating type.</p>
+  </div>
+</details>
+
+<details>
+  <summary><span class="tag t-human">human</span> Write the rules</summary>
+  <div class="body">
+    <p>Six rules — three kinds across two tables. Only the two derived ones differ in substance:</p>
+<pre><code>- id: HOU-001                       - id: APT-001
+  table: dbo.House                    table: dbo.Apartment
+  key: HouseId                        key: ApartmentId
+  column: Bathrooms                   column: Bathrooms
+  kind: derived                       kind: derived
+  gap: "Bathrooms IS NULL"            gap: "Bathrooms IS NULL"
+  fix: house.bathroomsFromRooms       fix: apartment.bathroomsFromRooms
+  inputs: [Rooms]                     inputs: [Rooms]
+  onMissingInput: block               onMissingInput: block
+  threshold: 500                      threshold: 500</code></pre>
+    <p>Four fields carry the weight, and all four are judgement:</p>
+    <table>
+      <tr><th>field</th><th>what you are deciding</th></tr>
+      <tr><td><code>gap</code></td><td>Which rows are wrong. Only you know this. Too loose and you patch good rows.</td></tr>
+      <tr><td><code>kind</code></td><td><code>identity</code> is a one-way door — the value enters the ledger and every future run reuses it.</td></tr>
+      <tr><td><code>threshold</code></td><td>Your alarm. Above it the rule is BLOCKED and the gate refuses. Set it near what you expect.</td></tr>
+      <tr><td><code>reason</code></td><td>Printed verbatim at the gate and in the report. Write it for whoever reviews at 5pm on a Friday.</td></tr>
+    </table>
+    <div class="note">
+      A predicate may only reference its own table. A subquery reaching elsewhere is rejected
+      when the rules load — checked by walking the parsed SQL, not by trusting the author.
+    </div>
+  </div>
+</details>
+
+<details>
+  <summary><span class="tag t-human">human</span> Add a generator, if none fits</summary>
+  <div class="body">
+    <p>Check first — this costs nothing and usually ends here:</p>
+<pre><code>pfandwerk generators</code></pre>
+    <p>
+      Around forty entries already exist. <code>EnergyClass</code> and <code>HeatingType</code>
+      are small fixed sets and the two <code>Bathrooms</code> formulas are per-table, so this
+      example needs four new ones. That is C#, a unit test, and a merge request.
+    </p>
+    <div class="note">
+      The rule file can <strong>never</strong> contain a literal value. If it could, "all values
+      come from the code-side whitelist" would stop being true. That is the whole reason a new
+      generator is a code change.
+    </div>
+    <p style="margin-bottom:0">
+      Whoever approves that MR must not be whoever approves the run — the notary fails the
+      build if the approver is the last person to have changed the rules file.
+    </p>
+  </div>
+</details>
+
+<details>
+  <summary><span class="tag t-code">deterministic</span> <code>pfandwerk plan</code> — guard, scan, freeze</summary>
+  <div class="body">
+<pre><code>./run.ps1 -Only HOU-001,HOU-002,HOU-003,APT-001,APT-002,APT-003</code></pre>
+    <p>Three things happen, in order, with no model anywhere near them:</p>
+    <ol>
+      <li><strong>Guard</strong> — the connection must match <code>allowlist.json</code> on
+        server, database and auth mode, or the run stops at exit 4 having touched nothing.</li>
+      <li><strong>Scan</strong> — each predicate is parsed, turned into SQL by one shared
+        code path, and executed.</li>
+      <li><strong>Freeze</strong> — every value is generated <em>now</em> and written into
+        <code>plan.json</code> as a literal.</li>
+    </ol>
+<pre><code>PLAN HOU-001   OK       31 gaps,  29 to patch, 2 skipped, 0 new identities
+PLAN HOU-002   OK       12 gaps,  12 to patch, 0 skipped, 12 new identities
+PLAN APT-001   OK       44 gaps,  43 to patch, 1 skipped, 0 new identities
+PLAN baseline: 2 invariant, 3 consumer already failing
+PLAN sha256 7f3a91c4…</code></pre>
+    <div class="note det">
+      <strong>That baseline line is the most important output of the run</strong>, and the
+      easiest to skim past. It is the state of the world <em>before</em> anything changed.
+      Nothing listed there can be blamed on this run — and anything that goes red later and is
+      not listed, can.
+    </div>
+    <p style="margin-bottom:0">
+      Writes <code>plan.json</code> and <code>baseline.json</code>. Nothing else has changed.
+    </p>
+  </div>
+</details>
+
+<details>
+  <summary><span class="tag t-ai">ai</span> Plan summary — optional prose</summary>
+  <div class="body">
+<pre><code>copilot -p prompts/plan.md \
+  --available-tools=shell,write --allow-all-tools \
+  --add-dir "$PWD/artifacts" --deny-url --no-color</code></pre>
+    <p>
+      Reads <code>plan.json</code>, writes <code>artifacts/plan-summary.md</code>. Useful when
+      the gate output runs to ninety lines and you want the shape before the detail.
+    </p>
+    <div class="note det">
+      It cannot reach a database, and the boundary is not the prompt. Prompts are instructions,
+      and a model that ignores instructions is not misbehaving in a way instructions prevent.
+      The boundary is <code>--available-tools</code> limiting what it can see,
+      <code>--add-dir</code> limiting where it can write, and <code>--deny-url</code> closing
+      the network. Run with <code>-NoAgents</code> and the run is still complete.
+    </div>
+  </div>
+</details>
+
+<details open>
+  <summary><span class="tag t-human">human</span> The gate — the one decision</summary>
+  <div class="body">
+<pre><code>=== GATE — run 20260815T141133Z-c8e2 ===
+
+HOU-002  identity  dbo.House.SecurityId   [OK]
+  12 gaps, threshold 50
+  TIER 1 — new identities (PERMANENT, reused by every future run):
+    HouseId 4102 -&gt; DE000K7M2P41
+    HouseId 4118 -&gt; DE000R3X9T05
+    … all 12 listed, never truncated
+
+HOU-001  derived  dbo.House.Bathrooms   [OK]
+  31 gaps, threshold 500
+  TIER 2 — values to be written:
+    HouseId 4102 (Rooms 7)  -&gt; 3
+    HouseId 4118 (Rooms 4)  -&gt; 2
+  SKIPPED HouseId 4210: input 'Rooms' is NULL  [onMissingInput: block]
+
+APT-001  derived  dbo.Apartment.Bathrooms   [OK]
+    ApartmentId 9007 (Rooms 5) -&gt; 2
+    ApartmentId 9011 (Rooms 3) -&gt; 1
+
+Approve? [yes/no]</code></pre>
+    <p>Four things are in front of you, in order of how expensive they are to get wrong:</p>
+    <table>
+      <tr><th>what</th><th>why it is shown that way</th></tr>
+      <tr><td>Tier 1, in full</td><td>Permanent. Truncating the list would make the review theatre.</td></tr>
+      <tr><td>Inputs beside outputs</td><td><code>3</code> alone is uncheckable. <code>Rooms 7 → 3</code> is checkable at a glance — and note the flat with 5 rooms gets 2 while the house with 7 gets 3, because the formulas differ.</td></tr>
+      <tr><td>Skipped rows</td><td>Approving accepts that those stay broken. That is a decision, made by proceeding.</td></tr>
+      <tr><td><code>[BLOCKED]</code></td><td>Any rule past its threshold refuses the whole run. Look before raising the number.</td></tr>
+    </table>
+    <div class="note">
+      <strong>Those are the real values.</strong> They were generated before you were asked and
+      frozen into <code>plan.json</code>; the SHA-256 you approve covers them, and apply
+      re-checks that hash before writing. What you see is what lands.
+    </div>
+  </div>
+</details>
+
+<details>
+  <summary><span class="tag t-code">deterministic</span> <code>pfandwerk apply</code> — the only step that writes</summary>
+  <div class="body">
+    <p>
+      First it recomputes <code>sha256(plan.json)</code> and compares it to
+      <code>plan.approved</code>. It does not trust that the gate ran — a plan edited after
+      approval is rejected even if the scripts ran in the right order.
+    </p>
+    <p>Then, per row, in one transaction each:</p>
+<pre><code>ledger INSERT  (identity rules only)   ┐ both commit,
+target UPDATE                          ┘ or neither</code></pre>
+<pre><code>APPLY 96 rows patched via sql -&gt; artifacts/patches.jsonl</code></pre>
+    <p style="margin-bottom:0">
+      <code>patches.jsonl</code> records the old value of every column touched. That is what
+      makes the run reversible — without it there is nothing to restore.
+    </p>
+  </div>
+</details>
+
+<details>
+  <summary><span class="tag t-code">deterministic</span> <code>pfandwerk verify</code> — three layers, diffed</summary>
+  <div class="body">
+<pre><code>VERIFY L1 pass  L2 pass  L3 pass
+  regressions:            none
+  pre-existing failures:  HOU-001.invariant, APT-001.invariant, House.HasSecurityId</code></pre>
+    <table>
+      <tr><th>layer</th><th>checks</th><th>exit if it fails</th></tr>
+      <tr><td>L1</td><td>Every row the plan promised to patch no longer matches its predicate. Skipped rows are not in that set, so they cannot fail it.</td><td><code>10</code></td></tr>
+      <tr><td>L2</td><td>Each rule's invariant, across the <em>whole</em> table — not just patched rows.</td><td><code>20</code></td></tr>
+      <tr><td>L3</td><td>The consumer suite.</td><td><code>30</code></td></tr>
+    </table>
+    <div class="note det">
+      <strong>Regressions and pre-existing failures are never merged.</strong> A regression is
+      something this run broke — green before, red now. A pre-existing failure was already red
+      when the baseline was captured: it is listed and it does not fail the run. Here the three
+      rows with NULL <code>Rooms</code> keep both invariants red, and that is correct.
+    </div>
+    <p style="margin-bottom:0">Exit <code>0</code>. Writes <code>verify.json</code>.</p>
+  </div>
+</details>
+
+<details>
+  <summary><span class="tag t-ai">ai</span> + <span class="tag t-code">deterministic</span> <code>pfandwerk report</code></summary>
+  <div class="body">
+    <p>The agent writes prose; code decides whether it ships.</p>
+<pre><code>copilot -p prompts/report-maker.md …     # writes artifacts/report.md
+pfandwerk report                          # facts → audit → fallback</code></pre>
+    <p>
+      <code>report</code> extracts <code>facts.json</code> deterministically, then checks every
+      number and rule id in the prose against it. One invented figure and the narrative does not
+      ship — you get a bare rendering of <code>facts.json</code> instead.
+    </p>
+    <div class="note det">
+      There is no second model checking the first. Mechanical number-matching is what code does
+      perfectly and a model does probabilistically, and that code had to exist for the notary
+      anyway.
+    </div>
+  </div>
+</details>
+
+<details>
+  <summary><span class="tag t-code">deterministic</span> <code>pfandwerk notary</code> — in CI</summary>
+  <div class="body">
+    <p>No database, no Copilot, committed artifacts only. It re-checks:</p>
+    <ul>
+      <li><code>sha256(plan.json)</code> against <code>plan.approved</code></li>
+      <li>the rules hash the plan was built from, against the rules in the tree</li>
+      <li><code>facts.json</code> against a fresh extraction from <code>patches.jsonl</code></li>
+      <li><code>report.md</code> against <code>facts.json</code></li>
+      <li>four eyes — the approver is not whoever last changed <code>rules/gaps.yaml</code></li>
+    </ul>
+    <div class="note stop">
+      Scope, stated plainly: this proves a file set produced by one person is internally
+      consistent. It catches drift, a stale report and an unapproved plan. It does not defend
+      against someone editing <code>patches.jsonl</code> and <code>facts.json</code> together.
+    </div>
+  </div>
+</details>
+
+<details>
+  <summary><span class="tag t-human">human</span> Undo, if you need to</summary>
+  <div class="body">
+<pre><code>pfandwerk revert                  # everything, newest first
+pfandwerk revert --only HOU-001   # one rule</code></pre>
+    <p>
+      Local only, never CI. Replays <code>patches.jsonl</code> backwards through the same write
+      path that applied it.
+    </p>
+    <div class="note">
+      <strong>The ledger rows stay.</strong> After a revert the twelve houses have no
+      <code>SecurityId</code> again — but the ledger still records which reference belongs to
+      each. The next run looks there first and writes back <code>DE000K7M2P41</code>, not a new
+      one. Deleting those rows would make "frozen forever" false the first time anyone reverted.
+    </div>
+  </div>
+</details>
+
+<!-- ────────────────────────────────────────────────────── the 3 kinds ── -->
+<h2>4 · The three kinds, side by side</h2>
+
+<div class="scroll">
+<table>
+  <tr>
+    <th></th><th>ephemeral</th><th>identity</th><th>derived</th>
+  </tr>
+  <tr>
+    <td><strong>House</strong></td>
+    <td><code>EnergyClass</code></td>
+    <td><code>SecurityId</code></td>
+    <td><code>Bathrooms</code> = ceil(Rooms/3)</td>
+  </tr>
+  <tr>
+    <td><strong>Apartment</strong></td>
+    <td><code>HeatingType</code></td>
+    <td><code>SecurityId</code></td>
+    <td><code>Bathrooms</code> = Rooms≥5 ? 2 : 1</td>
+  </tr>
+  <tr>
+    <td>value comes from</td>
+    <td>the whitelist, frozen at plan time</td>
+    <td>the whitelist, then collision-checked against table <em>and</em> ledger</td>
+    <td>a pure function of the columns in <code>inputs</code></td>
+  </tr>
+  <tr>
+    <td>ledger</td><td>no</td><td><strong>yes — permanent</strong></td><td>no</td>
+  </tr>
+  <tr>
+    <td>survives a revert</td>
+    <td>no, regenerated</td>
+    <td><strong>yes, identical value</strong></td>
+    <td>no, recomputed — same answer, because the function is pure</td>
+  </tr>
+  <tr>
+    <td>checkable afterwards</td>
+    <td>no</td>
+    <td>uniqueness only</td>
+    <td><strong>yes — a full-table invariant</strong></td>
+  </tr>
+</table>
+</div>
+
+<p>
+  That last row is the practical payoff of a derived rule. Because the value is a function of
+  the row, correctness can be asserted over <em>every</em> row in the table, not only the ones
+  this run touched — which is why the derived rules carry an <code>invariant</code> and the
+  other kinds do not.
+</p>
+
+<!-- ────────────────────────────────────────────────────────── branches ── -->
+<h2>5 · When it does not go straight through</h2>
+
+<div class="cards">
+  <div class="card">
+    <h3><span class="tag t-stop">stops</span> Threshold exceeded</h3>
+    <p style="font-size:.88rem;margin:0">
+      More rows matched than the rule allows, so it is <code>BLOCKED</code> and the gate refuses
+      the whole run. Either the data degraded or your predicate is too broad. Look before
+      raising the number.
+    </p>
+  </div>
+  <div class="card">
+    <h3><span class="tag t-human">yours</span> Row cannot be derived</h3>
+    <p style="font-size:.88rem;margin:0">
+      <code>Rooms</code> is NULL, so <code>onMissingInput: block</code> leaves the row alone and
+      lists it. Fix <code>Rooms</code> upstream, or change the policy to <code>floor</code> via
+      another MR. Approving proceeds without it.
+    </p>
+  </div>
+  <div class="card">
+    <h3><span class="tag t-stop">stops</span> Regression</h3>
+    <p style="font-size:.88rem;margin:0">
+      A check that was green at baseline is now red. Exit <code>20</code> or <code>30</code>,
+      and it stops. This is the only failure the run attributes to itself.
+    </p>
+  </div>
+  <div class="card">
+    <h3><span class="tag t-code">fine</span> Pre-existing failure</h3>
+    <p style="font-size:.88rem;margin:0">
+      Red before, red after. Listed, never fatal. Without a baseline this would look like damage
+      the run caused and would block every future run.
+    </p>
+  </div>
+  <div class="card">
+    <h3><span class="tag t-stop">stops</span> Ledger conflict</h3>
+    <p style="font-size:.88rem;margin:0">
+      The ledger already records a <em>different</em> value for that row and column. Exit
+      <code>5</code>. Ledger rows are never updated, so a person has to decide.
+    </p>
+  </div>
+  <div class="card">
+    <h3><span class="tag t-stop">stops</span> Not allowlisted</h3>
+    <p style="font-size:.88rem;margin:0">
+      The connection does not match <code>allowlist.json</code>. Exit <code>4</code>, before
+      anything is read or written. The last thing between a mistyped server name and a patched
+      table.
+    </p>
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────────────────────── recap ── -->
+<h2>6 · What each party can and cannot do</h2>
+
+<div class="scroll">
+<table>
+  <tr><th></th><th>human</th><th>deterministic code</th><th>ai</th></tr>
+  <tr><td>Decides which rows are broken</td><td>✓</td><td></td><td></td></tr>
+  <tr><td>Decides the kind and threshold</td><td>✓</td><td></td><td></td></tr>
+  <tr><td>Finds the matching rows</td><td></td><td>✓</td><td></td></tr>
+  <tr><td>Produces the values</td><td></td><td>✓</td><td></td></tr>
+  <tr><td>Approves</td><td>✓</td><td></td><td></td></tr>
+  <tr><td>Writes to the database</td><td></td><td>✓</td><td></td></tr>
+  <tr><td>Checks nothing regressed</td><td></td><td>✓</td><td></td></tr>
+  <tr><td>Writes prose</td><td></td><td></td><td>✓</td></tr>
+  <tr><td>Decides whether that prose ships</td><td></td><td>✓</td><td></td></tr>
+</table>
+</div>
+
+<footer>
+  <p>
+    <code>dbo.House</code> and <code>dbo.Apartment</code> are illustrative — they teach the
+    process and are not shipped rules. The commands, artifacts, exit codes and guarantees are
+    real. See <code>docs/runbook.md</code> to do this for an actual table, and
+    <code>docs/example-security-bathrooms.md</code> for a run worked end to end on the fixture.
+  </p>
+</footer>
+
+</main>
+
+<script>
+  // Native <details> does the work; JS only drives the two bulk controls, so the page
+  // stays usable with scripting off.
+  const all = () => document.querySelectorAll('details');
+  document.getElementById('expand').onclick = () => all().forEach(d => d.open = true);
+  document.getElementById('collapse').onclick = () => all().forEach(d => d.open = false);
+</script>
+</body>
+</html>
