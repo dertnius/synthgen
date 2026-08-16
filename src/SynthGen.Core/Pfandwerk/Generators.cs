@@ -31,6 +31,10 @@ public static class PatchGenerators
             ["property.yearBuilt"] = f => f.Random.Int(1950, 2020),
             ["property.securityId"] = f => NewSecurityId(f),
             ["security.securityId"] = f => NewSecurityId(f),
+            ["adventureworks.productColor"] = f => f.PickRandom(
+                new[] { "Black", "Blue", "Grey", "Multi", "Red", "Silver", "White", "Yellow" }),
+            ["adventureworks.orderStatus"] = f => f.Random.Int(1, 5),
+            ["adventureworks.personId"] = f => f.Random.Int(1, 20000),
         };
 
     private static readonly Dictionary<string, Func<IReadOnlyDictionary<string, object?>, object>> DerivedMap =

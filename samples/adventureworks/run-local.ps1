@@ -3,7 +3,8 @@
 Runs the full AdventureWorks-compatible sample locally against SQLite:
 create schema -> load 7 tables in dependency order -> per-table evaluations.
 
-Requires the conda/micromamba-provided SQLite (see scripts/setup-sqlite.ps1).
+Requires a native SQLite library; Windows users can provision it with
+scripts/setup-sqlite.ps1.
 #>
 [CmdletBinding()]
 param(

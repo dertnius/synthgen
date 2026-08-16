@@ -37,7 +37,7 @@ public sealed class Evaluator
     public List<EvaluationResult> Run(IEnumerable<Evaluation> evaluations)
     {
         using var conn = _connectionFactory();
-        conn.Open();
+        if (conn.State != ConnectionState.Open) conn.Open();
 
         var results = new List<EvaluationResult>();
         foreach (var eval in evaluations)

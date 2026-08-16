@@ -28,7 +28,7 @@ dependency without adding clarity.
 
 ## 3. SQLite integration tests (real SQL, fully local)
 
-`SynthGen.Sqlite` runs the identical pipeline — schema creation from the parsed DDL,
+`SynthGen.Core/Sqlite` runs the identical pipeline — schema creation from the parsed DDL,
 generation, loading, Dapper FK lookups, Dapper evaluations — against SQLite files.
 [SqliteIntegrationTests.cs](tests/SynthGen.Tests/SqliteIntegrationTests.cs) drives the
 full samples flow (Countries → Customers with FK lookups) and asserts every evaluation
@@ -43,12 +43,13 @@ FK chains, a composite PK with IDENTITY, computed columns, and CHECK-mirroring r
 loaded in dependency order with every evaluation asserted. The same chain runs via the
 CLI with `pwsh samples/adventureworks/run-local.ps1`.
 
-### SQLite provisioning — conda/micromamba only
+### SQLite provisioning
 
-Enterprise policy blocks binary downloads, so **the native sqlite3 library must come from
-conda or micromamba** (conda-forge). No NuGet-bundled binaries are used:
+No NuGet-bundled native binaries are used. Windows enterprise setups provision the native
+library through conda or micromamba (conda-forge), while Linux CI may use the distro
+library through an explicit path:
 `Microsoft.Data.Sqlite.Core` + `SQLitePCLRaw.provider.dynamic_cdecl` are pure managed
-packages, and [SqliteNative.cs](src/SynthGen.Sqlite/SqliteNative.cs) loads the
+packages, and [SqliteNative.cs](src/SynthGen.Core/Sqlite/SqliteNative.cs) loads the
 conda-provided `sqlite3.dll` at runtime.
 
 ```bash
@@ -63,8 +64,9 @@ invocation remains supported.) Discovery order:
 2. `envs/synthgen-sqlite/Library/bin/sqlite3.dll` in any conda/micromamba root
 3. Any other conda env (base included) carrying `sqlite3.dll`
 
-Tests marked `[SqliteFact]` **skip with an explanatory message** when no conda SQLite is
-found, so `dotnet test` stays green on machines without it.
+Tests marked `[SqliteFact]` skip with an explanatory message on an unprovisioned local
+machine. CI sets `SYNTHGEN_REQUIRE_SQLITE=1`; a missing native library then fails test
+discovery instead of silently producing a partial green suite.
 
 On Linux the distro already ships the library, so step 1 alone is enough and conda is not
 needed:
@@ -75,9 +77,9 @@ dotnet test        # 53 passed, 0 skipped
 ```
 
 `SqliteNative` loads it through `NativeLibrary.Load`, which accepts a `.so` as readily as a
-`.dll`. Note that steps 2 and 3 of the discovery order only probe `Library/bin/sqlite3.dll`,
-a Windows-only conda layout — on Linux the environment variable is currently the only path
-that resolves, so set it explicitly rather than relying on a conda env being found.
+`.dll`. The GitHub Actions workflow installs Ubuntu's `libsqlite3-0`, resolves its absolute
+path with `ldconfig`, and exports it through `SYNTHGEN_SQLITE_DLL` before building and
+testing.
 
 ### MSSQL-query compatibility trick
 
@@ -103,6 +105,16 @@ touches it.
 ```bash
 dotnet test
 ```
+
+The complete AdventureWorks repair demonstration is:
+
+```powershell
+pwsh samples/adventureworks/run-pfandwerk.ps1
+```
+
+It generates all seven tables, applies fixed corruption, runs the reviewed plan through
+`-Yes` approval, applies and verifies the patch, audits the report, then repeats the
+identity gaps with a different seed to prove ledger reuse.
 
 ```bash
 dotnet run --project src/SynthGen.Cli -- generate --ddl samples/customers.sql --table dbo.Countries --rules samples/countries.rules.yaml --provider sqlite --create-table --connection scratch/local.db

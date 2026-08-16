@@ -1,0 +1,21 @@
+# Consumer assertions for the deliberately corrupted AdventureWorks fixture.
+checks:
+  - name: AdventureWorks.ProductColorSentinelAbsent
+    query: "SELECT COUNT(*) FROM Production.Product WHERE Color = 'X9'"
+    expected: 0
+
+  - name: AdventureWorks.OrderStatusContract
+    query: "SELECT COUNT(*) FROM Sales.SalesOrderHeader WHERE Status < 1 OR Status > 5"
+    expected: 0
+
+  - name: AdventureWorks.CustomerPersonPresent
+    query: "SELECT COUNT(*) FROM Sales.Customer WHERE PersonID IS NULL"
+    expected: 0
+
+  - name: AdventureWorks.ProductRowCountStable
+    query: "SELECT COUNT(*) FROM Production.Product"
+    expected: 200
+
+  - name: AdventureWorks.CustomerRowCountStable
+    query: "SELECT COUNT(*) FROM Sales.Customer"
+    expected: 300

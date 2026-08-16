@@ -27,11 +27,9 @@
 #   threshold  if more rows than this match, the rule is BLOCKED and the gate refuses
 #   reason     why this data is bad. Copied verbatim into plan-summary.md and report.md
 #
-# NOTE for P3a: none of the `fix` keys below exist yet. SynthGen's FakerMap is a map of
-# Bogus *faker methods* (name.firstName, commerce.color, …) and carries no domain
-# generators. pfandwerk therefore needs its own whitelist that composes FakerMap and adds
-# these entries. Adding them is a code change and so goes through a reviewed MR, exactly as
-# hard rule 9 requires — the rule file cannot carry literal values itself.
+# Domain-specific `fix` keys live in Pfandwerk's reviewed generator whitelist. SynthGen's
+# FakerMap remains available for generic faker methods, while the domain map is the only
+# place allowed to add deterministic repair behavior.
 #
 # NOTE for P3a: derived rules need a SECOND whitelist. Func<Faker, object> cannot see the
 # row, so a derived generator's signature is Func<IReadOnlyDictionary<string, object?>,

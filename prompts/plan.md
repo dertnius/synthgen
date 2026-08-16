@@ -4,12 +4,12 @@ Read `AGENTS.md` first. Its hard rules bind everything below.
 
 ## Task
 
-1. Run: `pfandwerk plan`
+1. Run: `synthgen patch plan`
 2. Read `artifacts/plan.json`.
 3. Write `artifacts/plan-summary.md` — a human-readable summary a reviewer reads *before*
    approving the run at the gate.
 
-If `pfandwerk plan` exits non-zero, or `artifacts/plan.json` does not exist, write nothing.
+If `synthgen patch plan` exits non-zero, or `artifacts/plan.json` does not exist, write nothing.
 Report the exit code and stop.
 
 ## Sources — and nothing else

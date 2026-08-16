@@ -1,0 +1,46 @@
+name: build-and-test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  dotnet:
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+      SYNTHGEN_REQUIRE_SQLITE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Install system SQLite
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libsqlite3-0
+          sqlite_dll="$(ldconfig -p | awk '/libsqlite3\.so(\.0)?/{print $NF; exit}')"
+          test -n "$sqlite_dll"
+          test -f "$sqlite_dll"
+          echo "SYNTHGEN_SQLITE_DLL=$sqlite_dll" >> "$GITHUB_ENV"
+      - name: Build
+        run: dotnet build SynthGen.sln -c Release --nologo
+      - name: Test (SQLite is mandatory)
+        run: dotnet test SynthGen.sln -c Release --no-build --nologo --logger "console;verbosity=minimal"
+      - name: Run AdventureWorks pfandwerk E2E
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -File samples/adventureworks/run-pfandwerk.ps1
+      - name: Upload AdventureWorks evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adventureworks-e2e-evidence
+          if-no-files-found: error
+          path: |
+            scratch/adventureworks-artifacts/**
+            scratch/adventureworks*.db

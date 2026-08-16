@@ -1,5 +1,4 @@
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
+using SynthGen.Core.Support;
 
 namespace SynthGen.Core.Rules;
 
@@ -19,10 +18,7 @@ public static class RulesLoader
 
     public static RulesFile Load(string yaml)
     {
-        var deserializer = new DeserializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .IgnoreUnmatchedProperties()
-            .Build();
+        var deserializer = Yaml.Deserializer();
 
         RulesFile rules;
         try

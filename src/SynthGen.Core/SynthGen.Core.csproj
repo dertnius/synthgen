@@ -1,15 +1,25 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+  <ItemGroup>
+    <!-- Entity naming and JSON typing are implementation details worth testing directly
+         without making them part of the public surface. -->
+    <InternalsVisibleTo Include="SynthGen.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The .sql files are the source of truth for the ledger schema: one copy a DBA can
+         run by hand, embedded here so the code cannot drift from it. -->
+    <EmbeddedResource Include="..\..\db\pfandwerk\ledger.sql" LogicalName="ledger.sql" />
+    <EmbeddedResource Include="..\..\db\pfandwerk\ledger.sqlite.sql" LogicalName="ledger.sqlite.sql" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Bogus" Version="35.6.5" />
     <PackageReference Include="Dapper" Version="2.1.79" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="8.0.11" />
+    <PackageReference Include="SQLitePCLRaw.core" Version="2.1.11" />
+    <PackageReference Include="SQLitePCLRaw.provider.dynamic_cdecl" Version="2.1.11" />
     <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="180.78.1" />
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>

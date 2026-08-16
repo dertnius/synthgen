@@ -328,9 +328,9 @@ HeatingType  varchar(16)  NULL   ← ephemeral</code></pre>
 </details>
 
 <details>
-  <summary><span class="tag t-code">deterministic</span> <code>pfandwerk survey</code> — profile the tables</summary>
+  <summary><span class="tag t-code">deterministic</span> <code>synthgen patch survey</code> — profile the tables</summary>
   <div class="body">
-<pre><code>pfandwerk survey --tables dbo.House,dbo.Apartment   # omit --tables for everything</code></pre>
+<pre><code>synthgen patch survey --tables dbo.House,dbo.Apartment   # omit --tables for everything</code></pre>
 <pre><code>SURVEY dbo.House       200 rows, 6 columns, 5 unruled column(s) with signals
          SecurityId       5% NULL
          Bathrooms        33% NULL; '2' in 50% of non-NULL rows — dominant
@@ -413,7 +413,7 @@ HeatingType  varchar(16)  NULL   ← ephemeral</code></pre>
   <summary><span class="tag t-human">human</span> Add a generator, if none fits</summary>
   <div class="body">
     <p>Check first — this costs nothing and usually ends here:</p>
-<pre><code>pfandwerk generators</code></pre>
+<pre><code>synthgen patch generators</code></pre>
     <p>
       Around forty entries already exist. <code>EnergyClass</code> and <code>HeatingType</code>
       are small fixed sets and the two <code>Bathrooms</code> formulas are per-table, so this
@@ -432,7 +432,7 @@ HeatingType  varchar(16)  NULL   ← ephemeral</code></pre>
 </details>
 
 <details>
-  <summary><span class="tag t-code">deterministic</span> <code>pfandwerk plan</code> — guard, scan, freeze</summary>
+  <summary><span class="tag t-code">deterministic</span> <code>synthgen patch plan</code> — guard, scan, freeze</summary>
   <div class="body">
 <pre><code>./run.ps1 -Only HOU-001,HOU-002,HOU-003,APT-001,APT-002,APT-003</code></pre>
     <p>Four things happen, in order, with no model anywhere near them:</p>
@@ -537,7 +537,7 @@ Approve? [yes/no]</code></pre>
 </details>
 
 <details>
-  <summary><span class="tag t-code">deterministic</span> <code>pfandwerk apply</code> — the only step that writes</summary>
+  <summary><span class="tag t-code">deterministic</span> <code>synthgen patch apply</code> — the only step that writes</summary>
   <div class="body">
     <p>
       First it recomputes <code>sha256(plan.json)</code> and compares it to
@@ -556,7 +556,7 @@ target UPDATE                          ┘ or neither</code></pre>
 </details>
 
 <details>
-  <summary><span class="tag t-code">deterministic</span> <code>pfandwerk verify</code> — three layers, diffed</summary>
+  <summary><span class="tag t-code">deterministic</span> <code>synthgen patch verify</code> — three layers, diffed</summary>
   <div class="body">
 <pre><code>VERIFY L1 pass  L2 pass  L3 pass
   regressions:            none
@@ -586,11 +586,11 @@ target UPDATE                          ┘ or neither</code></pre>
 </details>
 
 <details>
-  <summary><span class="tag t-ai">ai</span> + <span class="tag t-code">deterministic</span> <code>pfandwerk report</code></summary>
+  <summary><span class="tag t-ai">ai</span> + <span class="tag t-code">deterministic</span> <code>synthgen patch report</code></summary>
   <div class="body">
     <p>The agent writes prose; code decides whether it ships.</p>
 <pre><code>copilot -p prompts/report-maker.md …     # writes artifacts/report.md
-pfandwerk report                          # facts → audit → fallback</code></pre>
+synthgen patch report                          # facts → audit → fallback</code></pre>
     <p>
       <code>report</code> extracts <code>facts.json</code> deterministically, then checks every
       number and rule id in the prose against it. One invented figure and the narrative does not
@@ -605,7 +605,7 @@ pfandwerk report                          # facts → audit → fallback</code><
 </details>
 
 <details>
-  <summary><span class="tag t-code">deterministic</span> <code>pfandwerk notary</code> — in CI</summary>
+  <summary><span class="tag t-code">deterministic</span> <code>synthgen patch notary</code> — in CI</summary>
   <div class="body">
     <p>No database, no Copilot, committed artifacts only. It re-checks:</p>
     <ul>
@@ -626,8 +626,8 @@ pfandwerk report                          # facts → audit → fallback</code><
 <details>
   <summary><span class="tag t-human">human</span> Undo, if you need to</summary>
   <div class="body">
-<pre><code>pfandwerk revert                  # everything, newest first
-pfandwerk revert --only HOU-001   # one rule</code></pre>
+<pre><code>synthgen patch revert                  # everything, newest first
+synthgen patch revert --only HOU-001   # one rule</code></pre>
     <p>
       Local only, never CI. Replays <code>patches.jsonl</code> backwards through the same write
       path that applied it.
