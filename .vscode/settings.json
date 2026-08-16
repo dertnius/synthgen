@@ -5,7 +5,7 @@
   // Hard rule 6 on the editor surface. Deny entries (false) win over allow entries.
   "chat.tools.terminal.autoApprove": {
     // Read-only harness verbs run without a click — dev form and packed form.
-    "/^dotnet run --project src\\/SynthGen\\.Cli .*-- patch (survey|generators|plan|verify|report)\\b/": true,
+    "/^dotnet run --project (\\.[\\\\/])?src[\\\\/]SynthGen\\.Cli .*-- patch (survey|generators|plan|verify|report)\\b/": true,
     "/^synthgen patch (survey|generators|plan|verify|report)\\b/": true,
     "/^dotnet (build|test)\\b/": true,
 
