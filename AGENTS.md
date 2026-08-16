@@ -13,7 +13,8 @@ markdown file.
 ## Hard rules (never violate)
 
 1. No agent ever writes to a database or generates a data value. All writes go through
-   `IPatchSink`; all values come from the `FakerMap` whitelist, frozen into `plan.json` at
+   `IPatchSink`; all values come from the generator whitelist (`Generators.cs` plus
+   `FakerMap`) or a reviewed dataset under `rules/datasets/`, frozen into `plan.json` at
    PLAN time.
 2. Patcher independently verifies `sha256(plan.json)` against `plan.approved`.
 3. Ledger and target writes commit atomically on the default sink. Ledger rows are never
@@ -32,8 +33,10 @@ markdown file.
 7. Revert is never wired into CI.
 8. `report.md` ships only with `audit=pass` from `ReportAuditor`, or as the bare-facts
    fallback.
-9. Rules and the generator whitelist change only via reviewed MR, and the plan approver is
-   never the rules author — enforced by the notary.
+9. Rules, datasets, and the generator whitelist change only via reviewed MR, and the plan
+   approver is never the rules author — enforced by the notary, which reads the git author
+   of `rules/gaps.yaml` and of `rules/datasets/`. The authoring skill commits as the
+   pinned bot identity `pfandwerk-bot@users.noreply.github.com` (D-C1).
 
 ## What those rules mean while you write
 

@@ -1,0 +1,37 @@
+# Reviewed vocabulary (D-A1): ISO currency codes with their names, correlated per row.
+# Two consumers, one review (D-A2): 08-currency.rules.yaml generates Sales.Currency
+# from these rows, and CUR-001 repairs a NULL Name by looking its code up here. A code
+# this file does not know (the seeded ZZZ row) is deliberately not repairable — the
+# planner lists it at the gate for a person instead.
+columns: [CurrencyCode, Name]
+match:
+  CurrencyCode: ["*currencycode*"]
+rows:
+  - [AED, Emirati Dirham]
+  - [AUD, Australian Dollar]
+  - [BRL, Brazilian Real]
+  - [CAD, Canadian Dollar]
+  - [CHF, Swiss Franc]
+  - [CNY, Chinese Yuan]
+  - [CZK, Czech Koruna]
+  - [DKK, Danish Krone]
+  - [EUR, Euro]
+  - [GBP, British Pound]
+  - [HKD, Hong Kong Dollar]
+  - [HUF, Hungarian Forint]
+  - [INR, Indian Rupee]
+  - [JPY, Japanese Yen]
+  - [KRW, South Korean Won]
+  - [MXN, Mexican Peso]
+  - [NOK, Norwegian Krone]
+  - [NZD, New Zealand Dollar]
+  - [PLN, Polish Zloty]
+  - [SAR, Saudi Riyal]
+  - [SEK, Swedish Krona]
+  - [SGD, Singapore Dollar]
+  - [THB, Thai Baht]
+  - [TRY, Turkish Lira]
+  - [TWD, New Taiwan Dollar]
+  - [USD, US Dollar]
+  - [VND, Vietnamese Dong]
+  - [ZAR, South African Rand]

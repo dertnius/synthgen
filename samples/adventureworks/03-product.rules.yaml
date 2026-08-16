@@ -24,8 +24,10 @@ columns:
     strategy: bool
     trueRate: 0.8
   Color:
-    strategy: pick
-    values: [Black, Blue, Grey, Multi, Red, Silver, White, Yellow]
+    # One home for the color vocabulary: datasets/product-colors.yaml also backs the
+    # AW-PROD-001 repair.
+    strategy: dataset
+    dataset: product-colors
     nullRate: 0.3
   SafetyStockLevel:
     strategy: int

@@ -1,0 +1,35 @@
+# [Sales].[Currency] — 24 currencies drawn from the reviewed vocabulary in
+# datasets/currencies.yaml. CurrencyCode and Name are correlated: both columns read the
+# same dataset row, so every code keeps its ISO name. The same rows back the CUR-001
+# repair — one reviewed list, two consumers (D-A2).
+
+table: Sales.Currency
+rows: 24
+seed: 108
+
+columns:
+  CurrencyCode:
+    strategy: dataset
+    dataset: currencies
+    unique: true
+  Name:
+    strategy: dataset
+    dataset: currencies
+  ModifiedDate:
+    strategy: datetime
+    min: 2024-01-01
+    max: 2025-06-30
+
+evaluations:
+  - name: row-count
+    query: SELECT COUNT(*) FROM [Sales].[Currency]
+    expect:
+      equals: 24
+  - name: code-unique
+    query: SELECT COUNT(*) - COUNT(DISTINCT [CurrencyCode]) FROM [Sales].[Currency]
+    expect:
+      equals: 0
+  - name: name-present
+    query: SELECT COUNT(*) FROM [Sales].[Currency] WHERE [Name] IS NULL
+    expect:
+      equals: 0

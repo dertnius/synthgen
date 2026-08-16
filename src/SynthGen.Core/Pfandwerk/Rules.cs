@@ -59,65 +59,133 @@ public sealed class GapRule
 
 public static class GapRulesLoader
 {
-    public static GapRulesFile LoadFile(string path) => Load(RulesLoader.ReadFile(path));
+    public static GapRulesFile LoadFile(string path) =>
+        Load(RulesLoader.ReadFile(path), DatasetStore.ForRulesFile(path));
 
-    public static GapRulesFile Load(string yaml)
+    public static GapRulesFile Load(string yaml) => Load(yaml, DatasetStore.Empty);
+
+    public static GapRulesFile Load(string yaml, DatasetStore datasets)
     {
         var file = RulesLoader.Deserialize<GapRulesFile>(yaml);
-        Validate(file);
+        Validate(file, datasets);
         return file;
     }
 
-    private static void Validate(GapRulesFile file)
+    private static void Validate(GapRulesFile file, DatasetStore datasets)
     {
         if (file.Rules.Count == 0) throw new RulesLoadException("Rules file declares no rules.");
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var r in file.Rules)
+            ValidateRule(r, seen, datasets);
+    }
+
+    /// <summary>
+    /// Every finding across every rule, instead of the first thrown one. `patch lint`
+    /// reports from here; loading still throws on the first defect.
+    /// </summary>
+    public static List<string> Lint(GapRulesFile file, DatasetStore datasets)
+    {
+        var findings = new List<string>();
+        if (file.Rules.Count == 0) findings.Add("Rules file declares no rules.");
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in file.Rules)
         {
-            if (string.IsNullOrWhiteSpace(r.Id)) throw new RulesLoadException("Every rule needs an 'id'.");
-            if (!seen.Add(r.Id)) throw new RulesLoadException($"Duplicate rule id '{r.Id}'.");
+            try { ValidateRule(r, seen, datasets); }
+            catch (RulesLoadException ex) { findings.Add(ex.Message); }
+        }
+        return findings;
+    }
 
-            foreach (var (name, value) in new[]
-                     { ("table", r.Table), ("key", r.Key), ("column", r.Column),
-                       ("kind", r.Kind), ("gap", r.Gap), ("fix", r.Fix), ("reason", r.Reason) })
-            {
-                if (string.IsNullOrWhiteSpace(value))
-                    throw new RulesLoadException($"Rule '{r.Id}': '{name}' is required.");
-            }
+    private static void ValidateRule(GapRule r, HashSet<string> seen, DatasetStore datasets)
+    {
+        if (string.IsNullOrWhiteSpace(r.Id)) throw new RulesLoadException("Every rule needs an 'id'.");
+        if (!seen.Add(r.Id)) throw new RulesLoadException($"Duplicate rule id '{r.Id}'.");
 
-            _ = r.ParsedKind;
-            if (r.Threshold <= 0)
-                throw new RulesLoadException($"Rule '{r.Id}': 'threshold' must be positive.");
+        foreach (var (name, value) in new[]
+                 { ("table", r.Table), ("key", r.Key), ("column", r.Column),
+                   ("kind", r.Kind), ("gap", r.Gap), ("fix", r.Fix), ("reason", r.Reason) })
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new RulesLoadException($"Rule '{r.Id}': '{name}' is required.");
+        }
 
-            if (r.ParsedKind == RuleKind.Derived)
-            {
-                if (r.Inputs is null || r.Inputs.Count == 0)
-                    throw new RulesLoadException($"Rule '{r.Id}': derived rules require 'inputs'.");
-                _ = r.ParsedMissingInputPolicy;
-            }
-            else if (r.Inputs is not null || r.OnMissingInput is not null)
-            {
-                throw new RulesLoadException(
-                    $"Rule '{r.Id}': 'inputs' and 'onMissingInput' apply only to derived rules.");
-            }
+        _ = r.ParsedKind;
+        if (r.Threshold <= 0)
+            throw new RulesLoadException($"Rule '{r.Id}': 'threshold' must be positive.");
 
-            // Resolve the generator now, not when a row first happens to match. A typo'd
-            // fix key would otherwise sit dormant until the day the data goes bad, which is
-            // precisely the day nobody wants to debug the rules file.
-            var derived = PatchGenerators.IsDerived(r.Fix);
-            if (r.ParsedKind == RuleKind.Derived && !derived)
-                throw new RulesLoadException(
-                    $"Rule '{r.Id}': '{r.Fix}' is not a derived generator. " +
-                    $"Available: {string.Join(", ", PatchGenerators.DerivedKeys)}");
-            if (r.ParsedKind != RuleKind.Derived && derived)
-                throw new RulesLoadException(
-                    $"Rule '{r.Id}': '{r.Fix}' is a derived generator and needs kind: derived.");
-            if (!derived && !PatchGenerators.RandomKeys.Contains(r.Fix, StringComparer.OrdinalIgnoreCase))
-                throw new RulesLoadException(
-                    $"Rule '{r.Id}': unknown fix key '{r.Fix}'. Run `synthgen patch generators` for the list.");
+        if (r.ParsedKind == RuleKind.Derived)
+        {
+            if (r.Inputs is null || r.Inputs.Count == 0)
+                throw new RulesLoadException($"Rule '{r.Id}': derived rules require 'inputs'.");
+            _ = r.ParsedMissingInputPolicy;
+        }
+        else if (r.Inputs is not null || r.OnMissingInput is not null)
+        {
+            throw new RulesLoadException(
+                $"Rule '{r.Id}': 'inputs' and 'onMissingInput' apply only to derived rules.");
+        }
 
+        // Resolve the generator now, not when a row first happens to match. A typo'd
+        // fix key would otherwise sit dormant until the day the data goes bad, which is
+        // precisely the day nobody wants to debug the rules file.
+        if (DatasetStore.IsDatasetKey(r.Fix))
+        {
+            ValidateDatasetFix(r, datasets);
             GapPredicateValidator.Validate(r);
+            return;
+        }
+
+        var derived = PatchGenerators.IsDerived(r.Fix);
+        if (r.ParsedKind == RuleKind.Derived && !derived)
+            throw new RulesLoadException(
+                $"Rule '{r.Id}': '{r.Fix}' is not a derived generator. " +
+                $"Available: {string.Join(", ", PatchGenerators.DerivedKeys)}");
+        if (r.ParsedKind != RuleKind.Derived && derived)
+            throw new RulesLoadException(
+                $"Rule '{r.Id}': '{r.Fix}' is a derived generator and needs kind: derived.");
+        if (!derived && !PatchGenerators.RandomKeys.Contains(r.Fix, StringComparer.OrdinalIgnoreCase))
+            throw new RulesLoadException(
+                $"Rule '{r.Id}': unknown fix key '{r.Fix}'. Run `synthgen patch generators` for the list.");
+
+        GapPredicateValidator.Validate(r);
+    }
+
+    /// <summary>
+    /// dataset.&lt;name&gt; fix keys: ephemeral rules pick a weighted random row; derived
+    /// rules look the row up by the declared inputs. Identities are excluded because a
+    /// fixed vocabulary can be neither unique nor permanent per row.
+    /// </summary>
+    private static void ValidateDatasetFix(GapRule r, DatasetStore datasets)
+    {
+        Dataset dataset;
+        try { (dataset, _) = datasets.ResolveFixKey(r.Fix, r.Column); }
+        catch (RulesLoadException ex) { throw new RulesLoadException($"Rule '{r.Id}': {ex.Message}"); }
+
+        switch (r.ParsedKind)
+        {
+            case RuleKind.Identity:
+                throw new RulesLoadException(
+                    $"Rule '{r.Id}': dataset fix keys cannot mint identities — identity values " +
+                    "must be unique and permanent, and a fixed vocabulary is neither.");
+
+            case RuleKind.Derived:
+                if (r.ParsedMissingInputPolicy == MissingInputPolicy.Floor)
+                    throw new RulesLoadException(
+                        $"Rule '{r.Id}': datasets declare no floor; use onMissingInput: block.");
+
+                var unknown = r.Inputs!.Where(i => dataset.ColumnIndex(i) < 0).ToList();
+                if (unknown.Count > 0)
+                    throw new RulesLoadException(
+                        $"Rule '{r.Id}': input(s) '{string.Join("', '", unknown)}' are not columns of " +
+                        $"dataset '{dataset.Name}' ({string.Join(", ", dataset.Columns)}).");
+
+                if (!dataset.ColumnsKeyRowsUniquely(r.Inputs!))
+                    throw new RulesLoadException(
+                        $"Rule '{r.Id}': inputs [{string.Join(", ", r.Inputs!)}] do not uniquely " +
+                        $"identify a row of dataset '{dataset.Name}' — a lookup would be ambiguous.");
+                break;
         }
     }
 }

@@ -27,7 +27,8 @@ public sealed class RowGenerator
 
     public RowGenerator(
         GenerationPlan plan,
-        IReadOnlyDictionary<string, IReadOnlyList<object>>? lookupData = null)
+        IReadOnlyDictionary<string, IReadOnlyList<object>>? lookupData = null,
+        DatasetStore? datasets = null)
     {
         _plan = plan;
         EffectiveSeed = plan.Rules.Seed ?? Random.Shared.Next(int.MaxValue);
@@ -38,7 +39,7 @@ public sealed class RowGenerator
 
         _generators = new ValueGenerator[plan.Columns.Count];
         for (int i = 0; i < plan.Columns.Count; i++)
-            _generators[i] = BuildChain(plan.Columns[i], lookupData);
+            _generators[i] = BuildChain(plan.Columns[i], lookupData, datasets ?? DatasetStore.Empty);
     }
 
     public IEnumerable<object?[]> Rows()
@@ -58,9 +59,10 @@ public sealed class RowGenerator
 
     private ValueGenerator BuildChain(
         PlannedColumn planned,
-        IReadOnlyDictionary<string, IReadOnlyList<object>>? lookupData)
+        IReadOnlyDictionary<string, IReadOnlyList<object>>? lookupData,
+        DatasetStore datasets)
     {
-        var generator = BuildBase(planned, lookupData);
+        var generator = BuildBase(planned, lookupData, datasets);
 
         // Coerce (incl. string truncation to DDL length) BEFORE the unique check, so
         // uniqueness is enforced on the value that actually reaches the database.
@@ -76,7 +78,8 @@ public sealed class RowGenerator
 
     private static ValueGenerator BuildBase(
         PlannedColumn planned,
-        IReadOnlyDictionary<string, IReadOnlyList<object>>? lookupData)
+        IReadOnlyDictionary<string, IReadOnlyList<object>>? lookupData,
+        DatasetStore datasets)
     {
         var col = planned.Column;
         var rule = planned.Rule;
@@ -107,6 +110,7 @@ public sealed class RowGenerator
             "sequence" => ValueGenerators.Sequence(rule.Start ?? 1, rule.Step ?? 1),
             "faker" => ValueGenerators.FakerMethod(rule.Method!),
             "constant" => ValueGenerators.Constant(rule.Value!),
+            "dataset" => BuildDataset(col, rule, datasets),
             "query" => ValueGenerators.Lookup(
                 col.Name,
                 lookupData?.GetValueOrDefault(col.Name)
@@ -116,6 +120,24 @@ public sealed class RowGenerator
             _ => throw new GenerationException(
                 $"Column '{col.Name}': unknown strategy '{rule.Strategy}'."),
         };
+    }
+
+    private static ValueGenerator BuildDataset(ColumnDefinition col, ColumnRule rule, DatasetStore datasets)
+    {
+        if (!datasets.TryGet(rule.Dataset!, out var dataset))
+            throw new GenerationException(
+                $"Column '{col.Name}': unknown dataset '{rule.Dataset}'. " +
+                (datasets.Names.Any()
+                    ? $"Available: {string.Join(", ", datasets.Names)}."
+                    : "No datasets/ directory exists next to the rules file."));
+
+        var datasetColumn = rule.DatasetColumn ?? col.Name;
+        var index = dataset.ColumnIndex(datasetColumn);
+        if (index < 0)
+            throw new GenerationException(
+                $"Column '{col.Name}': dataset '{dataset.Name}' has no column '{datasetColumn}' " +
+                $"(it has: {string.Join(", ", dataset.Columns)}). Set 'datasetColumn' to pick one.");
+        return ValueGenerators.Dataset(dataset, index);
     }
 
     private static int DefaultStringLength(ColumnDefinition col) =>

@@ -28,9 +28,9 @@ columns:
     nullRate: 0.15
   Status:
     # 1=In process, 2=Approved, 3=Backordered, 4=Rejected, 5=Shipped (AW codes 0-8).
-    strategy: pick
-    values: ['1', '2', '3', '4', '5']
-    weights: [0.05, 0.1, 0.05, 0.02, 0.78]
+    # Values and weights live in datasets/order-statuses.yaml, shared with AW-ORDER-001.
+    strategy: dataset
+    dataset: order-statuses
   OnlineOrderFlag:
     strategy: bool
     trueRate: 0.6

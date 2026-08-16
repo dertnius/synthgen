@@ -49,9 +49,25 @@ public sealed class AdventureWorksCorruptCommand : Command<AdventureWorksCorrupt
             UPDATE [Sales].[Customer]
             SET [PersonID] = NULL
             WHERE [CustomerID] IN (1, 2, 3);
+
+            -- The D-C3 currency fixture: 14 rows lose their ISO name (CUR-001 repairs
+            -- them from datasets/currencies.yaml) and one garbage code the vocabulary
+            -- does not know arrives with no name — that row must be SKIPPED at the gate,
+            -- never guessed.
+            UPDATE [Sales].[Currency]
+            SET [Name] = NULL
+            WHERE [CurrencyCode] IN (
+                SELECT [CurrencyCode] FROM [Sales].[Currency]
+                ORDER BY [CurrencyCode] LIMIT 14);
+
+            INSERT INTO [Sales].[Currency] ([CurrencyCode], [Name], [ModifiedDate])
+            SELECT 'ZZZ', NULL, '2024-01-01 00:00:00'
+            WHERE NOT EXISTS (
+                SELECT 1 FROM [Sales].[Currency] WHERE [CurrencyCode] = 'ZZZ');
             """);
 
-        Console.WriteLine("AdventureWorks deterministic corruption applied (product/order/customer ids 1-3).");
+        Console.WriteLine("AdventureWorks deterministic corruption applied " +
+                          "(product/order/customer ids 1-3; 14 currency names NULLed plus the ZZZ row).");
         return ExitCodes.Ok;
     }
 }

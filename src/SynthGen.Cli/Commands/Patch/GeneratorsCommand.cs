@@ -18,7 +18,22 @@ public sealed class GeneratorsCommand : Command<PatchSettings>
         foreach (var k in PatchGenerators.RandomKeys) Console.WriteLine($"  {k}");
         Console.WriteLine("\nDerived generators — for kind: derived (declare `inputs`)");
         foreach (var k in PatchGenerators.DerivedKeys) Console.WriteLine($"  {k}");
-        Console.WriteLine("\nNeed one that is not listed? Add it to Generators.cs and open an MR.");
+
+        var datasets = o.Datasets();
+        Console.WriteLine("\nDataset keys — ephemeral (random row) or derived (row looked up by `inputs`)");
+        if (datasets.All.Any())
+        {
+            foreach (var d in datasets.All)
+                Console.WriteLine($"  dataset.{d.Name}  (columns: {string.Join(", ", d.Columns)})");
+        }
+        else
+        {
+            Console.WriteLine("  none — add a YAML vocabulary under " +
+                              $"{System.IO.Path.GetDirectoryName(o.Rules)}/datasets/");
+        }
+
+        Console.WriteLine("\nNeed one that is not listed? A vocabulary is a reviewed dataset file; " +
+                          "only logic goes to Generators.cs. Either way it arrives by MR.");
         return ExitCodes.Ok;
     }
 }

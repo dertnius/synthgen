@@ -35,6 +35,16 @@ jobs:
         run: dotnet build SynthGen.sln -c Release --nologo
       - name: Test (SQLite is mandatory)
         run: dotnet test SynthGen.sln -c Release --no-build --nologo --logger "console;verbosity=minimal"
+      # The offline half of rule validation (D-B3): schema, predicate AST, fix keys
+      # including datasets, and the D-C2 test conventions. No database involved.
+      - name: Lint the shipped rules
+        run: >-
+          dotnet run --project src/SynthGen.Cli -c Release --no-build --
+          patch lint --rules rules/gaps.yaml
+      - name: Lint the AdventureWorks sample rules
+        run: >-
+          dotnet run --project src/SynthGen.Cli -c Release --no-build --
+          patch lint --rules samples/adventureworks/gaps.yaml
       - name: Run AdventureWorks pfandwerk E2E
         shell: pwsh
         run: pwsh -NoLogo -NoProfile -File samples/adventureworks/run-pfandwerk.ps1

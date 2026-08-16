@@ -95,6 +95,15 @@ CREATE TABLE [Sales].[Customer](
         REFERENCES [Sales].[SalesTerritory] ([TerritoryID])
 );
 
+-- Name is nullable in this subset (AdventureWorks proper says NOT NULL) so the D-C3
+-- currency fixture can seed the NULL-name gap CUR-001 repairs.
+CREATE TABLE [Sales].[Currency](
+    [CurrencyCode] [nchar](3) NOT NULL,
+    [Name] [nvarchar](50) NULL,
+    [ModifiedDate] [datetime] NOT NULL CONSTRAINT [DF_Currency_ModifiedDate] DEFAULT (GETDATE()),
+    CONSTRAINT [PK_Currency_CurrencyCode] PRIMARY KEY CLUSTERED ([CurrencyCode])
+);
+
 CREATE TABLE [Sales].[SalesOrderHeader](
     [SalesOrderID] [int] IDENTITY(1,1) NOT NULL,
     [RevisionNumber] [tinyint] NOT NULL CONSTRAINT [DF_SalesOrderHeader_RevisionNumber] DEFAULT (0),

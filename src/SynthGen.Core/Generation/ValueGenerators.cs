@@ -9,6 +9,15 @@ public sealed class GenerationContext
 {
     public required Faker Faker { get; init; }
     public int RowNumber { get; set; }
+
+    /// <summary>
+    /// Dataset name -> the row pick shared by every column drawing from that dataset in
+    /// the current generated row. Owner is the generator that rolled the pick: only the
+    /// owner may re-roll (a unique-retry), everyone else reuses, which is what keeps
+    /// correlated columns on one dataset row.
+    /// </summary>
+    internal Dictionary<string, (int Row, int Pick, object Owner)> DatasetPicks { get; } =
+        new(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>A column's value source. Wrappers compose as ordinary functions.</summary>
@@ -121,6 +130,27 @@ public static class ValueGenerators
     }
 
     public static ValueGenerator Constant(string value) => ctx => value;
+
+    /// <summary>
+    /// Emits one column of a reviewed dataset. Within a generated row, all columns naming
+    /// the same dataset read from a single picked dataset row. A repeated call from the
+    /// same generator in the same row re-rolls the pick — that is the Unique wrapper
+    /// retrying, and a fresh roll (not the cached one) is what lets it ever succeed.
+    /// </summary>
+    public static ValueGenerator Dataset(Rules.Dataset dataset, int columnIndex)
+    {
+        var owner = new object();
+        return ctx =>
+        {
+            if (!ctx.DatasetPicks.TryGetValue(dataset.Name, out var e)
+                || e.Row != ctx.RowNumber || e.Owner == owner)
+            {
+                e = (ctx.RowNumber, dataset.PickRow(ctx.Faker), owner);
+                ctx.DatasetPicks[dataset.Name] = e;
+            }
+            return dataset.Rows[e.Pick][columnIndex];
+        };
+    }
 
     // ------------------------------------------------------------------ wrappers
 

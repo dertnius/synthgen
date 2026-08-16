@@ -67,6 +67,8 @@ public static class RulesLoader
                 throw new RulesLoadException($"Column '{column}': strategy 'query' requires 'query'.");
             if (rule.Strategy == "constant" && rule.Value is null)
                 throw new RulesLoadException($"Column '{column}': strategy 'constant' requires 'value'.");
+            if (rule.Strategy == "dataset" && string.IsNullOrEmpty(rule.Dataset))
+                throw new RulesLoadException($"Column '{column}': strategy 'dataset' requires 'dataset'.");
         }
 
         var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

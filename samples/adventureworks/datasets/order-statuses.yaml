@@ -1,0 +1,14 @@
+# Reviewed vocabulary (D-A1): the order-status domain this subset generates.
+# 1=In process, 2=Approved, 3=Backordered, 4=Rejected, 5=Shipped (AW codes 0-8).
+# Weights match the shipped-heavy distribution the evaluations assert on; the
+# AW-ORDER-001 repair draws from the same weighted rows.
+columns: [Status]
+match:
+  Status: ["*orderstatus*"]
+rows:
+  - ['1']
+  - ['2']
+  - ['3']
+  - ['4']
+  - ['5']
+weights: [0.05, 0.1, 0.05, 0.02, 0.78]

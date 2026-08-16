@@ -19,6 +19,12 @@ checks:
       WHERE c.PersonID IS NOT NULL AND p.PersonID IS NULL
     expected: 0
 
+  # The invoicing consumer refuses to print a bare code; the unknown ZZZ row is the
+  # deliberate exception a human decides at the gate, so it is excluded here.
+  - name: AdventureWorks.CurrencyNamesPresent
+    query: "SELECT COUNT(*) FROM Sales.Currency WHERE Name IS NULL AND CurrencyCode <> 'ZZZ'"
+    expected: 0
+
   - name: AdventureWorks.ProductRowCountStable
     query: "SELECT COUNT(*) FROM Production.Product"
     expected: 200

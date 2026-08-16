@@ -101,7 +101,8 @@ public sealed class GenerateCommand : Command<GenerateCommand.Settings>
             ? tables[0]
             : DdlParser.ParseSingle(ddlText, tableSelector);
 
-        var plan = GenerationPlan.Build(table, rules);
+        var datasets = DatasetStore.ForRulesFile(settings.RulesPath);
+        var plan = GenerationPlan.Build(table, rules, datasets);
         foreach (var warning in plan.Warnings)
             Console.Error.WriteLine($"warning: {warning}");
 
@@ -177,7 +178,7 @@ public sealed class GenerateCommand : Command<GenerateCommand.Settings>
             ? LookupFetcher.Fetch(plan, connectionFactory!)
             : new Dictionary<string, IReadOnlyList<object>>();
 
-        var generator = new RowGenerator(plan, lookups);
+        var generator = new RowGenerator(plan, lookups, datasets);
 
         if (settings.DryRun)
             return RunDrySample(generator, settings.Sample);

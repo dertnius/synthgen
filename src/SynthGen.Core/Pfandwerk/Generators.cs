@@ -22,17 +22,13 @@ public sealed class GeneratorException : Exception
 /// </summary>
 public static class PatchGenerators
 {
-    private static readonly string[] EnergyClasses = { "A+", "A", "B", "C", "D", "E", "F", "G" };
-
+    // Pure value lists do not live here (D-A3): a vocabulary is reviewed data under
+    // rules/datasets/, reachable as a dataset.<name> fix key. This map is for logic only.
     private static readonly Dictionary<string, Func<Faker, object>> RandomMap =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["property.energyClass"] = f => f.PickRandom(EnergyClasses),
             ["property.yearBuilt"] = f => f.Random.Int(1950, 2020),
             ["security.securityId"] = f => NewSecurityId(f),
-            ["adventureworks.productColor"] = f => f.PickRandom(
-                new[] { "Black", "Blue", "Grey", "Multi", "Red", "Silver", "White", "Yellow" }),
-            ["adventureworks.orderStatus"] = f => f.Random.Int(1, 5),
             ["adventureworks.personId"] = _ =>
                 throw new GeneratorException(
                     "Generator 'adventureworks.personId' requires existing parent IDs."),

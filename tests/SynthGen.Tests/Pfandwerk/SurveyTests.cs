@@ -112,7 +112,7 @@ public sealed class SurveyTests : IDisposable
         var rule = new GapRule
         {
             Id = "HOU-001", Table = "dbo.House", Key = "HouseId", Column = "EnergyClass",
-            Kind = "ephemeral", Gap = "EnergyClass IS NULL", Fix = "property.energyClass",
+            Kind = "ephemeral", Gap = "EnergyClass IS NULL", Fix = "dataset.energy-classes",
             Threshold = 10, Reason = "r",
         };
         var survey = new Surveyor(Seed(), new List<GapRule> { rule }).Survey(null);

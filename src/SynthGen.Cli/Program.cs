@@ -36,6 +36,7 @@ app.Configure(config =>
     {
         patch.SetDescription("Repair bad values in existing rows: survey, plan, approve, apply, verify, report.");
         patch.AddCommand<SurveyCommand>("survey");
+        patch.AddCommand<LintCommand>("lint");
         patch.AddCommand<PlanCommand>("plan");
         patch.AddCommand<ApproveCommand>("approve");
         patch.AddCommand<ApplyCommand>("apply");

@@ -49,7 +49,7 @@ public class GapPredicateValidatorTests
     private static GapRule Rule(string gap) => new()
     {
         Id = "T-001", Table = "dbo.Security", Key = "PropertyId", Column = "Bathrooms",
-        Kind = "ephemeral", Gap = gap, Fix = "property.energyClass", Threshold = 10, Reason = "t",
+        Kind = "ephemeral", Gap = gap, Fix = "dataset.energy-classes", Threshold = 10, Reason = "t",
     };
 
     [Fact]

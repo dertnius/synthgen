@@ -53,6 +53,10 @@ public class PatchSettings : CommandSettings
     [Description("survey only: comma-separated tables to profile. Distinct from --only, which names rule ids.")]
     public string? Tables { get; init; }
 
+    [CommandOption("--tests <DIR>")]
+    [Description("lint only: directory scanned for the test conventions of D-C2.")]
+    public string Tests { get; init; } = "tests";
+
     [CommandOption("--sink <NAME>")]
     [Description("sql (default, transactional) or dab (REST, for sites mandating an API layer).")]
     public string Sink { get; init; } = "sql";
@@ -85,6 +89,9 @@ public class PatchSettings : CommandSettings
 
     public string Path(string name) => System.IO.Path.Combine(Artifacts, name);
     public DbContext Db() => new(ParsedProvider, TargetResolved, LedgerResolved);
+
+    /// <summary>The reviewed vocabularies next to the rules file: &lt;dir&gt;/datasets/*.yaml.</summary>
+    public DatasetStore Datasets() => DatasetStore.ForRulesFile(Rules);
 
     public void EnsureApplyUsesSameDatabase()
     {

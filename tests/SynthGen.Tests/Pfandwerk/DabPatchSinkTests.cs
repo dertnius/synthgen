@@ -198,7 +198,7 @@ public sealed class DabPatchSinkTests : IDisposable
         var composite = new GapRule
         {
             Id = "X-001", Table = "dbo.Security", Key = "PropertyId,Version", Column = "Bathrooms",
-            Kind = "ephemeral", Gap = "1=1", Fix = "property.energyClass", Threshold = 1, Reason = "r",
+            Kind = "ephemeral", Gap = "1=1", Fix = "dataset.energy-classes", Threshold = 1, Reason = "r",
         };
         var ex = Assert.Throws<PatchAbortedException>(() => DabPatchSink.Entity(composite));
         Assert.Contains("single-column keys only", ex.Message);

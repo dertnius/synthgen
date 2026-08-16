@@ -142,14 +142,21 @@ public static class ArtifactAuditor
         }
 
         // 5. Four eyes: the approver is not the person who last changed the rules (D11).
+        //    "Rules" spans the rules file AND its sibling datasets/ directory — a reviewed
+        //    vocabulary decides patched values exactly like a rule does (D-A1), so its
+        //    author is a rules author. With an agent committing as the pinned bot identity
+        //    (D-C1), this same comparison is what makes bot-author vs human-approver real.
         if (repoRoot is not null)
         {
-            var author = LastCommitAuthor(repoRoot, rulesPath);
-            if (author is not null &&
-                string.Equals(author, approval.GitEmail, StringComparison.OrdinalIgnoreCase))
+            foreach (var source in RuleSources(rulesPath))
             {
-                v.Add(new AuditViolation("four-eyes",
-                    $"{approval.GitEmail} approved a run using rules they themselves last changed."));
+                var author = LastCommitAuthor(repoRoot, source);
+                if (author is not null &&
+                    string.Equals(author, approval.GitEmail, StringComparison.OrdinalIgnoreCase))
+                {
+                    v.Add(new AuditViolation("four-eyes",
+                        $"{approval.GitEmail} approved a run using rules they themselves last changed ({source})."));
+                }
             }
         }
 
@@ -177,6 +184,14 @@ public static class ArtifactAuditor
 
         if (committed.Verify.Regressions.Count != recomputed.Verify.Regressions.Count)
             yield return new AuditViolation("facts-drift", "facts.json regression list does not match verify.json.");
+    }
+
+    /// <summary>The rules file, plus its datasets/ directory when one exists.</summary>
+    private static IEnumerable<string> RuleSources(string rulesPath)
+    {
+        yield return rulesPath;
+        var datasets = Path.Combine(Path.GetDirectoryName(rulesPath) ?? ".", "datasets");
+        if (Directory.Exists(datasets)) yield return datasets;
     }
 
     /// <summary>Email of whoever last touched the rules file, or null outside a git tree.</summary>
