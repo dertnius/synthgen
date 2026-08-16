@@ -1,0 +1,16 @@
+# Reviewed vocabulary (D-A1): the energy-label domain for dbo.Property repairs.
+# Moved verbatim from Generators.cs (D-A3); the fix key is dataset.energy-classes.
+# Changing this file is changing repair values: it takes the same reviewed MR as
+# gaps.yaml, and the notary's four-eyes check covers this directory.
+columns: [EnergyClass]
+match:
+  EnergyClass: ["*energyclass*"]
+rows:
+  - [A+]
+  - [A]
+  - [B]
+  - [C]
+  - [D]
+  - [E]
+  - [F]
+  - [G]

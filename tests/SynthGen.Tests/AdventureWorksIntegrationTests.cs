@@ -4,21 +4,22 @@ using SynthGen.Core.Eval;
 using SynthGen.Core.Generation;
 using SynthGen.Core.Load;
 using SynthGen.Core.Rules;
-using SynthGen.Sqlite;
+using SynthGen.Core.Sqlite;
 using SynthGen.Tests.Support;
 
 namespace SynthGen.Tests;
 
 /// <summary>
-/// Real-world integration test: a 7-table AdventureWorks-compatible subset (Microsoft's
+/// Real-world integration test: a 9-table AdventureWorks-compatible subset (Microsoft's
 /// public SQL Server sample schema) generated and validated end-to-end on SQLite.
-/// Exercises multi-schema attach (Production + Sales), cross-schema FK chains, a
+/// Exercises multi-schema attach (Person + Production + Sales), cross-schema FK chains, a
 /// composite PK with IDENTITY, computed-column skipping, and CHECK-mirroring rules.
 /// </summary>
 public sealed class AdventureWorksIntegrationTests : IDisposable
 {
     private static readonly string[] RulesInOrder =
     {
+        "00-person.rules.yaml",
         "01-productcategory.rules.yaml",
         "02-productsubcategory.rules.yaml",
         "03-product.rules.yaml",
@@ -26,6 +27,7 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
         "05-customer.rules.yaml",
         "06-salesorderheader.rules.yaml",
         "07-salesorderdetail.rules.yaml",
+        "08-currency.rules.yaml",
     };
 
     private readonly string _dir;
@@ -55,9 +57,9 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
     [Fact]
     public void Ddl_parses_with_expected_shape()
     {
-        Assert.Equal(7, _tables.Count);
+        Assert.Equal(9, _tables.Count);
         Assert.Equal(
-            new[] { "Production", "Sales" },
+            new[] { "Person", "Production", "Sales" },
             _tables.Select(t => t.Schema).Distinct().OrderBy(s => s));
 
         var detail = _tables.Single(t => t.Name == "SalesOrderDetail");
@@ -89,15 +91,17 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
 
         foreach (var rulesFile in RulesInOrder)
         {
-            var rules = RulesLoader.LoadFile(Path.Combine(_samplesDir, rulesFile));
+            var rulesPath = Path.Combine(_samplesDir, rulesFile);
+            var rules = RulesLoader.LoadFile(rulesPath);
+            var datasets = DatasetStore.ForRulesFile(rulesPath);
             var table = _tables.Single(t =>
                 $"{t.Schema}.{t.Name}".Equals(rules.Table, StringComparison.OrdinalIgnoreCase));
 
-            var plan = GenerationPlan.Build(table, rules);
+            var plan = GenerationPlan.Build(table, rules, datasets);
             Assert.Empty(plan.Warnings);
 
             var lookups = LookupFetcher.Fetch(plan, () => _factory.Open());
-            var generator = new RowGenerator(plan, lookups);
+            var generator = new RowGenerator(plan, lookups, datasets);
             var loaded = new SqliteTableWriter(_factory).Load(generator).RowsLoaded;
 
             Assert.Equal(rules.Rows, loaded);
@@ -109,7 +113,7 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
                 r.Passed, $"{rulesFile} / {r.Name}: value={r.Value} expected={r.Expected} ({r.Error})"));
         }
 
-        Assert.Equal(4 + 12 + 200 + 10 + 300 + 500 + 2000, totalRows);
+        Assert.Equal(1000 + 4 + 12 + 200 + 10 + 300 + 500 + 2000 + 24, totalRows);
 
         // Cross-table sanity beyond the per-table evaluations: order lines join back
         // through header AND product across schemas in one query.
@@ -122,6 +126,13 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
             WHERE h.[SalesOrderID] IS NULL OR p.[ProductID] IS NULL
             """);
         Assert.Equal(0, orphanJoins);
+        var orphanPeople = check.ExecuteScalar<long>("""
+            SELECT COUNT(*)
+            FROM [Sales].[Customer] c
+            LEFT JOIN [Person].[Person] p ON p.[PersonID] = c.[PersonID]
+            WHERE c.[PersonID] IS NOT NULL AND p.[PersonID] IS NULL
+            """);
+        Assert.Equal(0, orphanPeople);
     }
 
     [SqliteFact]
@@ -135,12 +146,14 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
 
         foreach (var rulesFile in RulesInOrder)
         {
-            var rules = RulesLoader.LoadFile(Path.Combine(_samplesDir, rulesFile));
+            var rulesPath = Path.Combine(_samplesDir, rulesFile);
+            var rules = RulesLoader.LoadFile(rulesPath);
+            var datasets = DatasetStore.ForRulesFile(rulesPath);
             var table = _tables.Single(t =>
                 $"{t.Schema}.{t.Name}".Equals(rules.Table, StringComparison.OrdinalIgnoreCase));
-            var plan = GenerationPlan.Build(table, rules);
+            var plan = GenerationPlan.Build(table, rules, datasets);
             var lookups = LookupFetcher.Fetch(plan, () => _factory.Open());
-            new SqliteTableWriter(_factory).Load(new RowGenerator(plan, lookups));
+            new SqliteTableWriter(_factory).Load(new RowGenerator(plan, lookups, datasets));
         }
 
         using var check = _factory.Open();

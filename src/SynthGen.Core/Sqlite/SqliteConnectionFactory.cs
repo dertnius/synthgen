@@ -1,6 +1,6 @@
 using Microsoft.Data.Sqlite;
 
-namespace SynthGen.Sqlite;
+namespace SynthGen.Core.Sqlite;
 
 /// <summary>
 /// Opens SQLite connections against a file database, attaching one companion database
@@ -29,6 +29,30 @@ public sealed class SqliteConnectionFactory
 
     public string DatabasePath => _databasePath;
 
+    /// <summary>
+    /// Schemas whose shard files already sit next to the database file — the inverse of
+    /// <see cref="SchemaFile"/>. Lets callers attach whatever a previous run created
+    /// instead of hardcoding a schema list.
+    /// </summary>
+    public static IEnumerable<string> DiscoverSchemas(string databasePath)
+    {
+        var full = Path.GetFullPath(databasePath);
+        var dir = Path.GetDirectoryName(full)!;
+        if (!Directory.Exists(dir)) yield break;
+
+        var stem = Path.GetFileNameWithoutExtension(full);
+        var ext = Path.GetExtension(full);
+        foreach (var file in Directory.EnumerateFiles(dir, stem + ".*"))
+        {
+            var name = Path.GetFileName(file);
+            // The pattern also matches the main file itself ("aw.db" for stem "aw").
+            if (name.Length <= stem.Length + 1 + ext.Length) continue;
+            if (!name.EndsWith(ext, StringComparison.OrdinalIgnoreCase)) continue;
+            var schema = name[(stem.Length + 1)..^ext.Length];
+            if (schema.Length > 0 && !schema.Contains('.')) yield return schema;
+        }
+    }
+
     /// <summary>File that backs a given schema's attached database.</summary>
     public string SchemaFile(string schema) =>
         Path.Combine(
@@ -56,13 +80,6 @@ public sealed class SqliteConnectionFactory
             attach.ExecuteNonQuery();
         }
         return conn;
-    }
-
-    /// <summary>Deletes the main and schema database files (test cleanup).</summary>
-    public void DeleteFiles()
-    {
-        foreach (var file in new[] { _databasePath }.Concat(_schemas.Select(SchemaFile)))
-            if (File.Exists(file)) File.Delete(file);
     }
 
     private static string Quote(string identifier) => $"\"{identifier.Replace("\"", "\"\"")}\"";

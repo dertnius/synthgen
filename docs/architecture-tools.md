@@ -1,8 +1,9 @@
 # Who does what — tools, gap detection, and how the agents are called
 
-`PFANDWERK-PLAN.md` §3 gives the phase order. This file answers the next question: which
-tool is actually running at each point, what it is allowed to touch, and where the agents
-sit relative to the database.
+The design history ([docs/history/PFANDWERK-PLAN.md](history/PFANDWERK-PLAN.md) §3) gives
+the phase order. This file answers the next question: which tool is actually running at
+each point, what it is allowed to touch, and where the agents sit relative to the
+database.
 
 The single organising rule: **agents produce prose, code produces data.** Everything below
 is a consequence of that.
@@ -22,20 +23,11 @@ is a consequence of that.
 
 Two of these deserve immediate qualification.
 
-**DAB is implemented and selectable with `--sink dab`** — see [`dab/`](../dab/README.md).
-`dab-config.json` was generated with the DAB CLI and passes `dab validate`, resolving
-`/api/Property` and `/api/Security`; `DabPatchSink` writes through it.
-
-`SqlPatchSink` remains the default because only it can enrol the ledger write and the target
-write in one transaction (D12). On the DAB path a ledger row means *reserved* rather than
-*applied*, and each row costs two HTTP round trips — a GET to read the previous value so the
-run stays revertible, then the PATCH.
-
-Two things the generated config had to be corrected for, both worth knowing if you
-regenerate it: DAB 2.0.10 enables an **MCP endpoint by default**, which would expose the
-target tables to any MCP client — including an agent — and it grants entity permissions
-broadly unless told otherwise. pfandwerk's config disables MCP and GraphQL and grants
-`read, update` only, so no code path through DAB can insert or delete a row.
+**DAB is implemented and selectable with `--sink dab`.** `SqlPatchSink` remains the
+default because only it can enrol the ledger write and the target write in one
+transaction (D12); on the DAB path a ledger row means *reserved* rather than *applied*.
+Configuration, per-setting rationale, limits, and the regeneration recipe live in
+[`dab/README.md`](../dab/README.md) — the sole home for DAB facts.
 
 **Bogus runs at PLAN, never at APPLY.** This is the D2 decision made concrete. By the time
 `Patcher` runs, every value already exists as a literal inside `plan.json`, and that file's
@@ -129,7 +121,10 @@ public interface IPatchSink
 ```
 
 - **`SqlPatchSink`** (default) — opens one transaction, INSERTs the ledger row when the
-  rule is an identity, UPDATEs the target row, commits both or neither.
+  rule is an identity, UPDATEs the target row, commits both or neither. This is why
+  `patch apply` requires the ledger and the target to be the same database — a second
+  database cannot join that transaction, and the run refuses rather than degrade to a
+  non-atomic reservation.
 - **`DabPatchSink`** (`--sink dab`) — GET then PATCH against a running `dab start`. No
   transaction can span the ledger write there, so a ledger row means *reserved* and
   applied-state derives from `patches.jsonl`. A non-2xx aborts; it never falls back to SQL.
@@ -142,8 +137,10 @@ public interface IPatchSink
 
 ## 5. How the agents are called
 
-Two agents. Both are `copilot -p <prompt file>`, both write exactly one markdown file, and
-neither can reach a database.
+Two agents in the run itself. Both are `copilot -p <prompt file>`, both write exactly one
+markdown file, and neither can reach a database. (A third, optional agent sits *outside*
+the run: `prompts/draft-rules.md` turns `synthgen patch survey` output into draft rule
+proposals under `rules/drafts/` — drafts, never rules; see the runbook §0.)
 
 ### Agent 1 — plan narrator
 
@@ -183,20 +180,17 @@ across runs.
 ### The boundary that makes this safe
 
 Prompt instructions are not a security boundary — a model that ignores them is not
-misbehaving in a way instructions can prevent. Two mechanisms do the actual work:
+misbehaving in a way instructions can prevent. The P0b spike
+([docs/history/copilot-cli-findings.md](history/copilot-cli-findings.md)) found that Copilot CLI has **no hook mechanism**, so the
+originally planned pre/post-tool-use hooks were never built. Containment comes from the
+CLI's own permission system instead, composed by `run.ps1` on every agent invocation:
 
-1. **`hooks/pre-tool-use.ps1`** — deny-by-default. The only permitted shell invocation is
-   `synthgen patch <verb>`, matched by parsing the command and normalising path separators
-   rather than regexing the raw string. Writes outside `artifacts/` are denied.
-2. **`hooks/post-tool-use.ps1`** — appends every tool call to
-   `artifacts/trajectory/<phase>.jsonl`, and the CI notary fails the build if those logs
-   are missing. What the agent did is auditable after the fact, by someone who was not
-   there.
-
-Both are pending P0b, which determines whether Copilot CLI can enforce a deny at all. If it
-cannot, hard rule 6 is met by process isolation — a read-only mount and no database route —
-instead of hooks. The spike that answered this is recorded in `docs/copilot-cli-findings.md`,
-and until it does, the agents' *containment* is unproven even though their *role* is fixed.
+- **`--available-tools=shell,write`** — nothing else is visible to the model at all; this
+  is the deny-by-default primitive.
+- **`--add-dir artifacts/`** — writes are scoped to the artifacts directory.
+- **`--deny-url`** — network egress is closed.
+- Explicit `--deny-tool` patterns still win over everything, including `--allow-all-tools`
+  (which non-interactive mode requires).
 
 ### Where Copilot runs
 
@@ -216,7 +210,7 @@ run.ps1
 │                     ledger + target collision checks              → plan.json
 │                     invariant + consumer checks                   → baseline.json
 ├─ copilot -p prompts/plan.md                                       → plan-summary.md
-├─ approve.ps1        human reads tiers 1 and 2                     → plan.approved
+├─ synthgen patch approve  human reads tiers 1 and 2                    → plan.approved
 ├─ synthgen patch apply    re-verify sha256, then IPatchSink per row     → patches.jsonl
 │                     SqlPatchSink: ledger + target in one tx
 ├─ synthgen patch verify   GapQuery re-scan          (layer 1)           → exit 10
@@ -246,5 +240,5 @@ audited before it ships.
   if a site requires it.
 - **Agents write two markdown files**, after the fact, with no database access, one of
   which is mechanically audited before it can ship.
-- **DAB is optional and currently unimplemented.** **Copilot is local-only.** **Bogus never
+- **DAB is optional and never the default.** **Copilot is local-only.** **Bogus never
   runs during APPLY.**

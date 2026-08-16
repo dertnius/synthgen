@@ -50,6 +50,11 @@ copilot -p prompts/draft-rules.md \
   --add-dir "$PWD/rules/drafts" --deny-url --no-color
 ```
 
+The same works from VS Code: pick the **pfandwerk-scribe** agent in Copilot Chat and run
+`/draft-rules` — same prompt, same contract, and the committed `.vscode/settings.json`
+keeps `approve`/`apply`/`revert` behind an approval prompt (see `VSCODE-COPILOT-PLAN.md`
+while it lands).
+
 Drafts land in `rules/drafts/` and are **not rules**. You edit them down and move what
 survives into `rules/gaps.yaml` yourself. The agent cannot choose `kind` or `threshold` for
 you — those are the one-way doors — and a draft still has to clear predicate validation,
@@ -67,18 +72,22 @@ Random generators — for kind: ephemeral and identity
   internet.email
   internet.userName
   ...
-  property.energyClass
   security.securityId
 
 Derived generators — for kind: derived (declare `inputs`)
   security.bathroomsFromRooms
+
+Dataset keys — ephemeral (random row) or derived (row looked up by `inputs`)
+  dataset.energy-classes  (columns: EnergyClass)
 ```
 
-Roughly forty entries, inherited from SynthGen's curated Bogus map plus pfandwerk's own.
-If your column is an email, a city, a name, a phone number, an IBAN — it is already there
-and you write no code at all.
+Roughly forty entries, inherited from SynthGen's curated Bogus map plus pfandwerk's own,
+plus one `dataset.<name>` key per reviewed vocabulary under `rules/datasets/`. If your
+column is an email, a city, a name, a phone number, an IBAN — it is already there and you
+write no code at all. If it is a vocabulary — a color list, a status domain, currency
+names — add a dataset YAML, not code.
 
-If it is not, see [§6](#6-when-you-need-a-new-generator).
+If it is neither, see [§6](#6-when-you-need-a-new-generator).
 
 ## 2. Write the rules
 
@@ -120,11 +129,13 @@ whole table in VERIFY layer 2).
 
 ## 3. Point it at a database
 
-Two connections. The ledger may be the same database or a separate config one.
+Two connections, but they must resolve to the **same database**: the ledger table lives in
+the target database, because APPLY commits the ledger row and the patch in one transaction
+and refuses to run when the two connections differ. Omit the ledger variable and it falls
+back to the target.
 
 ```bash
 export PFANDWERK_TARGET_CONNECTION="Server=.;Database=PropertyDev;Integrated Security=true;TrustServerCertificate=true"
-export PFANDWERK_LEDGER_CONNECTION="Server=.;Database=PfandwerkConfig;Integrated Security=true;TrustServerCertificate=true"
 ```
 
 Both must appear in `allowlist.json` or the run stops with exit 4 before touching anything.
@@ -230,8 +241,25 @@ identities rather than issuing new ones.
 
 ## 6. When you need a new generator
 
-Only when nothing in `synthgen patch generators` fits — a domain value with its own rules, or
-anything derived from another column.
+Only when nothing in `synthgen patch generators` fits.
+
+**If the value is a vocabulary** — a fixed list, or correlated columns like a currency
+code and its name — it is not a generator at all: add a reviewed dataset file next to
+your rules, e.g. `rules/datasets/order-priorities.yaml`:
+
+```yaml
+columns: [Priority]
+rows: [[low], [normal], [high]]
+weights: [0.2, 0.7, 0.1]     # optional
+```
+
+and name it as the fix key: `fix: dataset.order-priorities` (ephemeral picks a weighted
+row; `kind: derived` with `inputs` looks the row up, and a value the dataset does not
+know is skipped at the gate). Same review, same notary, no C#. The same file also feeds
+SynthGen's bulk `dataset` strategy.
+
+**If the value is logic** — anything derived from another column, or with its own
+construction rules:
 
 1. Add the entry to `src/SynthGen.Core/Pfandwerk/Generators.cs`:
 
@@ -243,11 +271,14 @@ anything derived from another column.
 ["security.bathroomsFromRooms"] = inputs => BathroomsFromRooms(inputs),
 ```
 
-2. Add a unit test. Derived generators especially — if the generator and a rule's
+2. Add tests. Derived generators especially — a boundary-value theory and a refuse-NULL
+   test (`synthgen patch lint` checks they exist), because if the generator and a rule's
    `invariant` ever disagree, the invariant fails on rows the generator just wrote.
-3. Open an MR. Someone other than you approves it, and **that person must not be the one who
+3. Run `synthgen patch lint` — the offline self-check (schema, predicates, fix keys,
+   thresholds against the survey, test conventions) that reports every finding at once.
+4. Open an MR. Someone other than you approves it, and **that person must not be the one who
    approves the run** — the CI notary fails the build if the approver is the last person to
-   have changed `rules/gaps.yaml`.
+   have changed `rules/gaps.yaml` or `rules/datasets/`.
 
 Derived generators take `Func<IReadOnlyDictionary<string, object?>, object>` and random ones
 take `Func<Faker, object>`. The signatures are separate on purpose: a random generator that

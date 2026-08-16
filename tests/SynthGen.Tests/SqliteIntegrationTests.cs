@@ -4,7 +4,7 @@ using SynthGen.Core.Eval;
 using SynthGen.Core.Generation;
 using SynthGen.Core.Load;
 using SynthGen.Core.Rules;
-using SynthGen.Sqlite;
+using SynthGen.Core.Sqlite;
 using SynthGen.Tests.Support;
 
 namespace SynthGen.Tests;

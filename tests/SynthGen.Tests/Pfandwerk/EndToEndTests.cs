@@ -1,6 +1,6 @@
 using Dapper;
 using Pfandwerk;
-using SynthGen.Sqlite;
+using SynthGen.Core.Sqlite;
 
 namespace Pfandwerk.Tests;
 

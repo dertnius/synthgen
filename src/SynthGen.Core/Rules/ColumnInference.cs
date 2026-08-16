@@ -8,7 +8,8 @@ namespace SynthGen.Core.Rules;
 /// </summary>
 public static class ColumnInference
 {
-    public static ColumnRule Infer(ColumnDefinition col, TableDefinition table)
+    public static ColumnRule Infer(ColumnDefinition col, TableDefinition table,
+                                   DatasetStore? datasets = null)
     {
         // The database owns these values.
         if (col.IsIdentity || col.IsDbGenerated)
@@ -48,10 +49,31 @@ public static class ColumnInference
             };
         }
 
-        var rule = InferByNameOrType(col);
+        var rule = InferByDataset(col, datasets) ?? InferByNameOrType(col);
         if (col.HasUniqueConstraint)
             rule.Unique = true;
         return WithNullRate(col, rule);
+    }
+
+    /// <summary>
+    /// The dataset name-match hook (D-A2): a dataset whose 'match' globs cover this
+    /// column's name supplies its values. Reviewed vocabularies beat generic fakers, so
+    /// this runs before the faker-by-name heuristics.
+    /// </summary>
+    private static ColumnRule? InferByDataset(ColumnDefinition col, DatasetStore? datasets)
+    {
+        if (datasets is null) return null;
+        foreach (var dataset in datasets.All)
+        {
+            if (dataset.MatchColumn(col.Name) is { } datasetColumn)
+                return new ColumnRule
+                {
+                    Strategy = "dataset",
+                    Dataset = dataset.Name,
+                    DatasetColumn = datasetColumn,
+                };
+        }
+        return null;
     }
 
     private static ColumnRule WithNullRate(ColumnDefinition col, ColumnRule rule)

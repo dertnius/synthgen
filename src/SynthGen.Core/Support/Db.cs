@@ -1,6 +1,6 @@
 using System.Data;
 using Microsoft.Data.SqlClient;
-using SynthGen.Sqlite;
+using SynthGen.Core.Sqlite;
 
 namespace SynthGen.Core.Support;
 
@@ -27,9 +27,12 @@ public sealed class DbContext
 
         if (provider == Provider.Sqlite)
         {
-            // Keep the offline provider able to exercise the multi-schema AdventureWorks
-            // sample as well as the single-schema pfandwerk fixtures.
-            var schemas = new[] { "dbo", "Production", "Sales" };
+            // dbo always (the ledger lives there); everything else comes from the shard
+            // files a previous run created, so multi-schema samples need no hardcoded list.
+            var schemas = new[] { "dbo" }
+                .Concat(SqliteConnectionFactory.DiscoverSchemas(targetConnection))
+                .Concat(SqliteConnectionFactory.DiscoverSchemas(ledgerConnection))
+                .ToArray();
             _sqliteTarget = new SqliteConnectionFactory(targetConnection, schemas);
             _sqliteLedger = new SqliteConnectionFactory(ledgerConnection, schemas);
         }

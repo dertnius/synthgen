@@ -18,6 +18,29 @@ public sealed record Check(string Name, string Query, int Expected);
 
 public static class CheckRunner
 {
+    private sealed class ConsumerChecksFile
+    {
+        public List<Entry> Checks { get; set; } = new();
+        public sealed class Entry
+        {
+            public string Name { get; set; } = "";
+            public string Query { get; set; } = "";
+            public int Expected { get; set; }
+        }
+    }
+
+    /// <summary>
+    /// The consumer suite as SQL assertions, loaded through the shared rules-YAML plumbing
+    /// so the baseline and the post-run comparison run through one code path. A missing
+    /// file simply means no consumer checks.
+    /// </summary>
+    public static List<Check> LoadConsumerChecks(string path)
+    {
+        if (!File.Exists(path)) return new List<Check>();
+        var file = RulesLoader.Deserialize<ConsumerChecksFile>(File.ReadAllText(path));
+        return file.Checks.Select(c => new Check(c.Name, c.Query, c.Expected)).ToList();
+    }
+
     /// <summary>
     /// Thin adapter over <see cref="Evaluator"/> — the repo's one SQL assertion runner —
     /// that keeps the CheckResult artifact shape (and its exact detail strings, which

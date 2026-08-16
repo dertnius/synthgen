@@ -37,8 +37,8 @@ passes. This layer already caught a real production bug (Dapper `Query<object>` 
 
 The real-world workout is
 [AdventureWorksIntegrationTests.cs](tests/SynthGen.Tests/AdventureWorksIntegrationTests.cs):
-a 7-table subset of Microsoft's public AdventureWorks schema
-([samples/adventureworks/](samples/adventureworks/README.md)) — two schemas, cross-schema
+an 8-table subset of Microsoft's public AdventureWorks schema
+([samples/adventureworks/](samples/adventureworks/README.md)) — three schemas, cross-schema
 FK chains, a composite PK with IDENTITY, computed columns, and CHECK-mirroring rules —
 loaded in dependency order with every evaluation asserted. The same chain runs via the
 CLI with `pwsh samples/adventureworks/run-local.ps1`.
@@ -57,7 +57,7 @@ pwsh scripts/setup-sqlite.ps1
 ```
 
 creates the `synthgen-sqlite` conda env with the sqlite package. (On enterprise networks,
-`scripts/setup-enterprise.ps1` runs this for you as part of its one-command setup — manual
+`scripts/enterprise/setup-enterprise.ps1` runs this for you as part of its one-command setup — manual
 invocation remains supported.) Discovery order:
 
 1. `SYNTHGEN_SQLITE_DLL` environment variable (explicit pin)
@@ -73,7 +73,7 @@ needed:
 
 ```bash
 export SYNTHGEN_SQLITE_DLL=/usr/lib/x86_64-linux-gnu/libsqlite3.so.0
-dotnet test        # 53 passed, 0 skipped
+dotnet test        # 136 passed, 0 skipped
 ```
 
 `SqliteNative` loads it through `NativeLibrary.Load`, which accepts a `.so` as readily as a
@@ -112,7 +112,7 @@ The complete AdventureWorks repair demonstration is:
 pwsh samples/adventureworks/run-pfandwerk.ps1
 ```
 
-It generates all seven tables, applies fixed corruption, runs the reviewed plan through
+It generates all eight tables, applies fixed corruption, runs the reviewed plan through
 `-Yes` approval, applies and verifies the patch, audits the report, then repeats the
 identity gaps with a different seed to prove ledger reuse.
 

@@ -22,7 +22,7 @@ public sealed class PlanCommand : Command<PatchSettings>
         ledger.EnsureCreated();
 
         var runId = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'") + "-" + Guid.NewGuid().ToString("N")[..4];
-        var plan = new Planner(db, ledger, rules, o.Seed).Plan(runId, Json.Sha256File(o.Rules));
+        var plan = new Planner(db, ledger, rules, o.Seed, o.Datasets()).Plan(runId, Json.Sha256File(o.Rules));
         Json.Write(o.Path("plan.json"), plan);
 
         // Captured now, before anything changes: this is what makes "regression" and

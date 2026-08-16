@@ -1,8 +1,15 @@
 -- AdventureWorks-compatible schema subset (structure follows Microsoft's public
--- AdventureWorks sample database). Seven tables across two schemas, exercising:
+-- AdventureWorks sample database). Eight tables across three schemas, exercising:
 -- cross-schema FKs, composite PK with IDENTITY, computed columns, NEWID()/GETDATE()
 -- defaults, ROWGUIDCOL, money/nchar/tinyint types, reserved-word column names,
 -- and CHECK constraints. Dependency order: top to bottom.
+
+CREATE TABLE [Person].[Person](
+    [PersonID] [int] IDENTITY(1,1) NOT NULL,
+    [FirstName] [nvarchar](50) NOT NULL,
+    [LastName] [nvarchar](50) NOT NULL,
+    CONSTRAINT [PK_Person_PersonID] PRIMARY KEY CLUSTERED ([PersonID])
+);
 
 CREATE TABLE [Production].[ProductCategory](
     [ProductCategoryID] [int] IDENTITY(1,1) NOT NULL,
@@ -86,6 +93,15 @@ CREATE TABLE [Sales].[Customer](
     CONSTRAINT [PK_Customer_CustomerID] PRIMARY KEY CLUSTERED ([CustomerID]),
     CONSTRAINT [FK_Customer_SalesTerritory_TerritoryID] FOREIGN KEY ([TerritoryID])
         REFERENCES [Sales].[SalesTerritory] ([TerritoryID])
+);
+
+-- Name is nullable in this subset (AdventureWorks proper says NOT NULL) so the D-C3
+-- currency fixture can seed the NULL-name gap CUR-001 repairs.
+CREATE TABLE [Sales].[Currency](
+    [CurrencyCode] [nchar](3) NOT NULL,
+    [Name] [nvarchar](50) NULL,
+    [ModifiedDate] [datetime] NOT NULL CONSTRAINT [DF_Currency_ModifiedDate] DEFAULT (GETDATE()),
+    CONSTRAINT [PK_Currency_CurrencyCode] PRIMARY KEY CLUSTERED ([CurrencyCode])
 );
 
 CREATE TABLE [Sales].[SalesOrderHeader](

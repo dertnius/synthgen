@@ -13,7 +13,8 @@ markdown file.
 ## Hard rules (never violate)
 
 1. No agent ever writes to a database or generates a data value. All writes go through
-   `IPatchSink`; all values come from the `FakerMap` whitelist, frozen into `plan.json` at
+   `IPatchSink`; all values come from the generator whitelist (`Generators.cs` plus
+   `FakerMap`) or a reviewed dataset under `rules/datasets/`, frozen into `plan.json` at
    PLAN time.
 2. Patcher independently verifies `sha256(plan.json)` against `plan.approved`.
 3. Ledger and target writes commit atomically on the default sink. Ledger rows are never
@@ -22,14 +23,20 @@ markdown file.
    every gap predicate, not by convention.
 5. Connection strings must match `allowlist.json` on Server + Database + auth mode, or the
    run aborts. Allowlist entries never contain passwords.
-6. Copilot CLI runs locally only; agent tool access is denied by default via the CLI's own
-   permission system — `--available-tools` for visibility, `--deny-tool` for exceptions,
-   `--add-dir` for filesystem scope, `--deny-url` for network. Not hooks: the CLI has none.
+6. Copilot runs locally only; agent tool access is denied by default via each surface's
+   own permission system — CLI: `--available-tools` for visibility, `--deny-tool` for
+   exceptions, `--add-dir` for filesystem scope, `--deny-url` for network; VS Code: the
+   `tools` allowlist in `.github/agents/` frontmatter plus the committed
+   `chat.tools.terminal.autoApprove` deny entries in `.vscode/settings.json`. Not hooks:
+   the CLI has none and this design uses none in VS Code. Approve, apply, and revert are
+   never run by an agent on any surface.
 7. Revert is never wired into CI.
 8. `report.md` ships only with `audit=pass` from `ReportAuditor`, or as the bare-facts
    fallback.
-9. Rules and the generator whitelist change only via reviewed MR, and the plan approver is
-   never the rules author — enforced by the notary.
+9. Rules, datasets, and the generator whitelist change only via reviewed MR, and the plan
+   approver is never the rules author — enforced by the notary, which reads the git author
+   of `rules/gaps.yaml` and of `rules/datasets/`. The authoring skill commits as the
+   pinned bot identity `pfandwerk-bot@users.noreply.github.com` (D-C1).
 
 ## What those rules mean while you write
 

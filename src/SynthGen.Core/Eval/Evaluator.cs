@@ -2,7 +2,6 @@ using System.Data;
 using System.Data.Common;
 using System.Globalization;
 using Dapper;
-using Microsoft.Data.SqlClient;
 using SynthGen.Core.Rules;
 
 namespace SynthGen.Core.Eval;
@@ -26,10 +25,6 @@ public sealed class EvaluationResult
 public sealed class Evaluator
 {
     private readonly Func<IDbConnection> _connectionFactory;
-
-    /// <summary>SQL Server convenience constructor.</summary>
-    public Evaluator(string connectionString)
-        : this(() => new SqlConnection(connectionString)) { }
 
     /// <summary>Provider-agnostic constructor — tests pass a SQLite (or fake) factory.</summary>
     public Evaluator(Func<IDbConnection> connectionFactory) => _connectionFactory = connectionFactory;

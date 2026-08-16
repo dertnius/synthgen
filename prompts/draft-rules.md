@@ -90,7 +90,7 @@ rules:
     column: EnergyClass
     kind: ephemeral
     gap: "EnergyClass IS NULL OR EnergyClass = 'X9'"
-    fix: property.energyClass
+    fix: dataset.energy-classes
     threshold: 600
     reason: >-
       Describe why this is broken and why a test cares. One or two sentences.

@@ -166,5 +166,60 @@ public class PatcherGuardTests : IDisposable
         Assert.Equal("1", entry.New);
     }
 
+    [Fact]
+    public void Does_not_publish_a_partial_log_when_a_later_patch_fails()
+    {
+        var planPath = Path.Combine(_dir, "plan.json");
+        var approvedPath = Path.Combine(_dir, "plan.approved");
+        var patchesPath = Path.Combine(_dir, "patches.jsonl");
+        var plan = Plan() with
+        {
+            Rules = new List<RulePlan>
+            {
+                Plan().Rules[0] with
+                {
+                    Patches = new List<PlannedPatch>
+                    {
+                        new(new Dictionary<string, string> { ["PropertyId"] = "101" }, "1", null),
+                        new(new Dictionary<string, string> { ["PropertyId"] = "102" }, "2", null),
+                    },
+                },
+            },
+        };
+        Json.Write(planPath, plan);
+        Json.Write(approvedPath,
+            new Approval(Json.Sha256File(planPath), "u", "u@example.test", "2026-08-15T00:00:00Z"));
+        var sink = new FakePatchSink
+        {
+            FailWhen = i => i.RowKey == "102",
+        };
+
+        Assert.Throws<PatchAbortedException>(() =>
+            new Patcher(sink, Rules).Apply(planPath, approvedPath, patchesPath));
+
+        Assert.False(File.Exists(patchesPath));
+        Assert.DoesNotContain(Directory.EnumerateFiles(_dir), path =>
+            Path.GetFileName(path).StartsWith(".patches.jsonl.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Rejects_an_identity_apply_with_a_separate_ledger_database()
+    {
+        var identity = new GapRule
+        {
+            Id = "SEC-002", Table = "dbo.Security", Key = "PropertyId", Column = "SecurityId",
+            Kind = "identity", Gap = "SecurityId IS NULL", Fix = "security.securityId",
+            Threshold = 50, Reason = "r",
+        };
+        var db = new DbContext(Provider.Sqlite,
+            Path.Combine(_dir, "target.db"), Path.Combine(_dir, "ledger.db"));
+
+        var ex = Assert.Throws<PatchAbortedException>(() =>
+            new SqlPatchSink(db, "test").Apply(
+                new PatchInstruction(identity, "101", "DE000AAA", WriteLedger: true)));
+
+        Assert.Contains("same database", ex.Message);
+    }
+
     public void Dispose() => Directory.Delete(_dir, recursive: true);
 }

@@ -35,7 +35,7 @@ public sealed class ColumnRule
 {
     /// <summary>
     /// One of: auto, skip, dbDefault, int, decimal, bool, date, datetime, time, guid,
-    /// string, template, pick, sequence, faker, query, constant.
+    /// string, template, pick, sequence, faker, query, constant, dataset.
     /// </summary>
     public string? Strategy { get; set; }
 
@@ -62,6 +62,16 @@ public sealed class ColumnRule
 
     /// <summary>Fixed value for the "constant" strategy.</summary>
     public string? Value { get; set; }
+
+    /// <summary>
+    /// Dataset name for the "dataset" strategy (a file under the rules file's sibling
+    /// datasets/ directory). Columns sharing a dataset draw from the same row per
+    /// generated row, so correlated vocabularies stay correlated.
+    /// </summary>
+    public string? Dataset { get; set; }
+
+    /// <summary>Dataset column to emit for the "dataset" strategy; defaults to the column's own name.</summary>
+    public string? DatasetColumn { get; set; }
 
     /// <summary>Fraction of rows (0..1) that receive NULL. Only honored for nullable columns.</summary>
     public double? NullRate { get; set; }

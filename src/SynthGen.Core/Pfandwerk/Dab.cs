@@ -1,7 +1,5 @@
-using System.Globalization;
 using System.Net;
 using System.Text;
-using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace Pfandwerk;
@@ -24,14 +22,6 @@ namespace Pfandwerk;
 /// </summary>
 public sealed class DabPatchSink : IPatchSink
 {
-    /// <summary>
-    /// Relaxed escaping because this JSON goes into an HTTP request body, never into HTML.
-    /// The default encoder escapes '+' to \u002B, which is valid JSON but turns a real
-    /// EnergyClass value like "A+" into something unreadable on the wire and in logs.
-    /// </summary>
-    private static readonly JsonSerializerOptions Body =
-        new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
-
     private readonly HttpClient _http;
     private readonly DbContext _db;
     private readonly string _createdBy;
@@ -91,23 +81,10 @@ public sealed class DabPatchSink : IPatchSink
             // See the class remarks: this row is a reservation until patches.jsonl says
             // otherwise.
             using var ledger = _db.OpenLedger();
-            var existing = LedgerRepository.Existing(ledger, null, i.Rule.Table, i.RowKey, i.Rule.Column);
-            if (existing is not null)
-            {
-                if (!string.Equals(existing, i.Value, StringComparison.Ordinal))
-                    throw new LedgerConflictException(
-                        $"Rule '{i.Rule.Id}': the ledger records {i.Rule.Column} = '{existing}' for " +
-                        $"{i.Rule.Key} {i.RowKey}, but this run would write '{i.Value}'. Ledger rows " +
-                        "are never updated, so this needs a human.");
-            }
-            else
-            {
-                LedgerRepository.Insert(ledger, null,
-                    new LedgerEntry(i.Rule.Table, i.RowKey, i.Rule.Column, i.Value!, i.Rule.Id), _createdBy);
-            }
+            LedgerRepository.Reserve(ledger, null, i.Rule, i.RowKey, i.Value, _createdBy);
         }
 
-        var body = $"{{{JsonSerializer.Serialize(i.Rule.Column, Body)}:{JsonValue(i.Value)}}}";
+        var body = $"{{{JsonSerializer.Serialize(i.Rule.Column, Canonical.RelaxedJson)}:{Canonical.JsonValue(i.Value)}}}";
         var request = new HttpRequestMessage(HttpMethod.Patch, url)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json"),
@@ -156,22 +133,4 @@ public sealed class DabPatchSink : IPatchSink
         return parts[^1].Trim('[', ']', '"');
     }
 
-    /// <summary>
-    /// Values round-trip through plan.json as strings, but JSON is typed and DAB's
-    /// `request-body-strict` is unforgiving. Numeric-looking values become JSON numbers.
-    ///
-    /// <para><b>Known failure mode:</b> a string column whose value happens to be all digits
-    /// is sent as a number. SqlPatchSink has the same heuristic but the driver reconciles
-    /// the mismatch; DAB does not. Use --sink sql for such a column, or quote the value in
-    /// a way this method can see.</para>
-    /// </summary>
-    internal static string JsonValue(string? value)
-    {
-        if (value is null) return "null";
-        if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l))
-            return l.ToString(CultureInfo.InvariantCulture);
-        if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var d))
-            return d.ToString(CultureInfo.InvariantCulture);
-        return JsonSerializer.Serialize(value, Body);
-    }
 }

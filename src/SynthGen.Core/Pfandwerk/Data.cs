@@ -7,11 +7,16 @@ using System.Text.Json;
 namespace Pfandwerk;
 
 /// <summary>
-/// Canonical string form for ledger storage and comparison. Without a pinned form,
-/// collision checks and identity reuse break on decimals, dates and trailing zeros.
+/// The one home for value conversions between artifacts (strings), the database, SQL
+/// text, and JSON. Values round-trip through plan.json and patches.jsonl as strings;
+/// every direction out of that form lives here so the heuristics cannot drift apart.
 /// </summary>
 public static class Canonical
 {
+    /// <summary>
+    /// Canonical string form for ledger storage and comparison. Without a pinned form,
+    /// collision checks and identity reuse break on decimals, dates and trailing zeros.
+    /// </summary>
     public static string Format(object? value) => value switch
     {
         null => "",
@@ -23,6 +28,41 @@ public static class Canonical
         IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
         _ => value.ToString() ?? "",
     };
+
+    /// <summary>Parameter value for the driver: hand it a number when the string is one.</summary>
+    public static object DbValue(string value) =>
+        long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l) ? l : value;
+
+    /// <summary>Inline SQL literal: numeric keys must not be quoted.</summary>
+    public static string SqlLiteral(string key) =>
+        long.TryParse(key, out _) ? key : "'" + key.Replace("'", "''") + "'";
+
+    /// <summary>
+    /// Relaxed escaping for JSON that goes into an HTTP request body, never into HTML.
+    /// The default encoder escapes '+' to +, which is valid JSON but turns a real
+    /// EnergyClass value like "A+" into something unreadable on the wire and in logs.
+    /// </summary>
+    public static readonly System.Text.Json.JsonSerializerOptions RelaxedJson =
+        new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
+    /// <summary>
+    /// JSON-typed rendering for DAB's request-body-strict endpoints: numeric-looking
+    /// values become JSON numbers.
+    ///
+    /// <para><b>Known failure mode:</b> a string column whose value happens to be all
+    /// digits is sent as a number. SqlPatchSink's <see cref="DbValue"/> has the same
+    /// heuristic but the driver reconciles the mismatch; DAB does not. Use --sink sql for
+    /// such a column.</para>
+    /// </summary>
+    public static string JsonValue(string? value)
+    {
+        if (value is null) return "null";
+        if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l))
+            return l.ToString(CultureInfo.InvariantCulture);
+        if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var d))
+            return d.ToString(CultureInfo.InvariantCulture);
+        return System.Text.Json.JsonSerializer.Serialize(value, RelaxedJson);
+    }
 }
 
 // ---------------------------------------------------------------- artifact shapes
@@ -149,6 +189,29 @@ public sealed class LedgerRepository
             VALUES (@TargetTable, @RowKey, @ColumnName, @Value, @RuleId, @createdBy)
             """,
             new { e.TargetTable, e.RowKey, e.ColumnName, e.Value, e.RuleId, createdBy }, tx);
+
+    /// <summary>
+    /// Appends the ledger row unless it is already there — shared by both sinks so the
+    /// conflict semantics cannot drift. A run reusing a frozen identity — after a revert,
+    /// or because the column was cleared upstream — must not record it twice; the existing
+    /// row is the whole reason the value came back. A <em>different</em> recorded value is
+    /// a real conflict and stops the run.
+    /// </summary>
+    public static void Reserve(IDbConnection conn, IDbTransaction? tx,
+                               GapRule rule, string rowKey, string? value, string createdBy)
+    {
+        var existing = Existing(conn, tx, rule.Table, rowKey, rule.Column);
+        if (existing is not null)
+        {
+            if (!string.Equals(existing, value, StringComparison.Ordinal))
+                throw new LedgerConflictException(
+                    $"Rule '{rule.Id}': the ledger records {rule.Column} = '{existing}' for " +
+                    $"{rule.Key} {rowKey}, but this run would write '{value}'. Ledger rows " +
+                    "are never updated, so this needs a human.");
+            return;
+        }
+        Insert(conn, tx, new LedgerEntry(rule.Table, rowKey, rule.Column, value!, rule.Id), createdBy);
+    }
 }
 
 public sealed record AllowlistEntry(string Server, string Database, string Auth);

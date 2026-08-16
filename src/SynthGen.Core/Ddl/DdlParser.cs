@@ -99,12 +99,6 @@ public static class DdlParser
                 }
             }
 
-            foreach (var uq in table.UniqueConstraints.Where(u => u.Columns.Count == 1))
-            {
-                var c = table.FindColumn(uq.Columns[0]);
-                if (c is not null) c.HasUniqueConstraint = true;
-            }
-
             Tables.Add(table);
         }
 
@@ -150,7 +144,6 @@ public static class DdlParser
                         break;
                     case UniqueConstraintDefinition:
                         def.HasUniqueConstraint = true;
-                        table.UniqueConstraints.Add(new Model.UniqueConstraintDefinition { Columns = { def.Name } });
                         break;
                     case CheckConstraintDefinition check:
                         table.CheckConstraints.Add(new Model.CheckConstraintDefinition
@@ -186,12 +179,14 @@ public static class DdlParser
                         unique.Columns.Select(c => c.Column.MultiPartIdentifier.Identifiers[^1].Value));
                     break;
                 case UniqueConstraintDefinition unique:
-                    table.UniqueConstraints.Add(new Model.UniqueConstraintDefinition
+                    // Multi-column uniques are not jointly enforced (documented limit);
+                    // only a single-column constraint marks its column unique.
+                    if (unique.Columns.Count == 1)
                     {
-                        Name = unique.ConstraintIdentifier?.Value,
-                        Columns = unique.Columns
-                            .Select(c => c.Column.MultiPartIdentifier.Identifiers[^1].Value).ToList(),
-                    });
+                        var c = table.FindColumn(
+                            unique.Columns[0].Column.MultiPartIdentifier.Identifiers[^1].Value);
+                        if (c is not null) c.HasUniqueConstraint = true;
+                    }
                     break;
                 case ForeignKeyConstraintDefinition fk:
                     table.ForeignKeys.Add(new Model.ForeignKeyDefinition

@@ -17,16 +17,21 @@ public sealed class Planner
     private readonly DbContext _db;
     private readonly LedgerRepository _ledger;
     private readonly List<GapRule> _rules;
+    private readonly DatasetStore _datasets;
     private readonly Faker _faker;
+    private readonly HashSet<string> _plannedIdentityValues = new(StringComparer.Ordinal);
 
-    public Planner(DbContext db, LedgerRepository ledger, List<GapRule> rules, int? seed = null)
+    public Planner(DbContext db, LedgerRepository ledger, List<GapRule> rules, int? seed = null,
+                   DatasetStore? datasets = null)
     {
         (_db, _ledger, _rules) = (db, ledger, rules);
+        _datasets = datasets ?? DatasetStore.Empty;
         _faker = seed is null ? new Faker() : new Faker { Random = new Randomizer(seed.Value) };
     }
 
     public PlanDocument Plan(string runId, string rulesSha)
     {
+        _plannedIdentityValues.Clear();
         using var conn = _db.OpenTarget();
         var plans = new List<RulePlan>();
 
@@ -69,8 +74,7 @@ public sealed class Planner
                             break;
 
                         default:
-                            patches.Add(new PlannedPatch(key,
-                                Canonical.Format(PatchGenerators.Random(rule.Fix, _faker)), null));
+                            patches.Add(new PlannedPatch(key, EphemeralValue(rule), null));
                             break;
                     }
                 }
@@ -134,19 +138,43 @@ public sealed class Planner
         var existing = _ledger.Lookup(rule.Table, rowKey, rule.Column);
         if (existing is not null) return existing;
 
+        var candidateQuery = PatchGenerators.CandidateQuery(rule.Fix);
+        var candidates = candidateQuery is null
+            ? null
+            : conn.Query<long>(candidateQuery).Cast<object>().ToList();
+        if (candidateQuery is not null && candidates!.Count == 0)
+            throw new GeneratorException(
+                $"Rule '{rule.Id}': generator '{rule.Fix}' found no existing parent IDs.");
+
         for (var attempt = 0; attempt < 100; attempt++)
         {
-            var candidate = Canonical.Format(PatchGenerators.Random(rule.Fix, _faker));
+            var generated = candidates is null
+                ? PatchGenerators.Random(rule.Fix, _faker)
+                : PatchGenerators.Random(rule.Fix, _faker, candidates);
+            var candidate = Canonical.Format(generated);
             var inTable = conn.ExecuteScalar<int>(
                 $"SELECT COUNT(*) FROM {rule.Table} WHERE {rule.Column} = @v", new { v = candidate }) > 0;
-            if (inTable || _ledger.ValueTaken(rule.Table, rule.Column, candidate)) continue;
+            var planned = $"{rule.Table}\u001f{rule.Column}\u001f{candidate}";
+            if (inTable || _ledger.ValueTaken(rule.Table, rule.Column, candidate) ||
+                _plannedIdentityValues.Contains(planned)) continue;
+            _plannedIdentityValues.Add(planned);
             return candidate;
         }
         throw new GeneratorException(
             $"Rule '{rule.Id}': no collision-free value for {rule.Column} in 100 attempts.");
     }
 
-    private static string? Derive(GapRule rule, Dictionary<string, string?> inputs, out string? why)
+    /// <summary>An ephemeral value: a dataset row pick or a whitelisted generator call.</summary>
+    private string EphemeralValue(GapRule rule)
+    {
+        if (!DatasetStore.IsDatasetKey(rule.Fix))
+            return Canonical.Format(PatchGenerators.Random(rule.Fix, _faker));
+
+        var (dataset, column) = _datasets.ResolveFixKey(rule.Fix, rule.Column);
+        return Canonical.Format(dataset.Rows[dataset.PickRow(_faker)][column]);
+    }
+
+    private string? Derive(GapRule rule, Dictionary<string, string?> inputs, out string? why)
     {
         why = null;
         var missing = rule.Inputs!.Where(i => inputs.GetValueOrDefault(i) is null).ToList();
@@ -157,6 +185,22 @@ public sealed class Planner
             why = $"input '{string.Join("', '", missing)}' is NULL";
             return null;
         }
+
+        if (DatasetStore.IsDatasetKey(rule.Fix))
+        {
+            // A value the vocabulary does not know is not repaired by this run: the row is
+            // listed at the gate for a person, exactly like a NULL input.
+            var (dataset, column) = _datasets.ResolveFixKey(rule.Fix, rule.Column);
+            var row = dataset.FindRow(inputs.ToDictionary(kv => kv.Key, kv => kv.Value!));
+            if (row < 0)
+            {
+                why = $"input ({string.Join(", ", inputs.Select(kv => $"{kv.Key} '{kv.Value}'"))}) " +
+                      $"matches no row of dataset '{dataset.Name}'";
+                return null;
+            }
+            return Canonical.Format(dataset.Rows[row][column]);
+        }
+
         return Canonical.Format(PatchGenerators.Derived(
             rule.Fix, inputs.ToDictionary(kv => kv.Key, kv => (object?)kv.Value)));
     }

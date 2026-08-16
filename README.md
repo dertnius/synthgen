@@ -34,7 +34,7 @@ No SQL Server handy? The whole loop also runs against SQLite for local smoke tes
 
 On a restricted network (nuget.org/anaconda.org blocked)? One command reconfigures every
 dependency and proves the environment works:
-`powershell -ExecutionPolicy Bypass -File scripts\setup-enterprise.ps1` — see
+`powershell -ExecutionPolicy Bypass -File scripts\enterprise\setup-enterprise.ps1` — see
 [ENTERPRISE-SETUP.md](ENTERPRISE-SETUP.md) for the profile, offline mode, and exit codes.
 
 During development, replace `synthgen` with `dotnet run --project src/SynthGen.Cli --`.
@@ -48,7 +48,8 @@ The sample schema has an FK chain: generate `samples/countries.rules.yaml` first
 | `init` | Parse DDL, emit a commented starter rules YAML (strategies, null rates, FK lookup queries, evaluation stubs all inferred from the DDL). |
 | `generate` | Generate rows and bulk-load them; runs the rules file's evaluations afterwards unless `--no-evaluate`. `--dry-run` prints a sample; `--csv` writes a file instead of the DB. |
 | `evaluate` | Run only the evaluations from a rules file. |
-| `patch <verb>` | The pfandwerk subsystem: repair bad values in *existing* rows behind a human approval gate — `survey`, `plan`, `approve`, `apply`, `verify`, `report`, `notary`, `revert`, `generators`. See [docs/runbook.md](docs/runbook.md) and [PFANDWERK-PLAN.md](PFANDWERK-PLAN.md). |
+| `patch <verb>` | The pfandwerk subsystem: repair bad values in *existing* rows behind a human approval gate — `survey`, `plan`, `approve`, `apply`, `verify`, `report`, `notary`, `revert`, `generators`. See [docs/runbook.md](docs/runbook.md); design history in [docs/history/](docs/history/PFANDWERK-PLAN.md). |
+| `sample adventureworks-corrupt` | Seed deterministic corruption into a generated AdventureWorks database — the setup step of the pfandwerk demo (`samples/adventureworks/run-pfandwerk.ps1`). |
 
 Common options: `--ddl`, `--rules`, `--table` (when the script has several tables),
 `--connection` (falls back to `SYNTHGEN_CONNECTION`), `--rows`/`--seed` (override the rules
@@ -164,10 +165,18 @@ src/SynthGen.Core/     Ddl/ (ScriptDom parser)  Rules/ (YAML + inference + scaff
 src/SynthGen.Cli/      Spectre.Console.Cli: init, generate, evaluate + the patch branch
 tests/SynthGen.Tests/  one offline test project; local SQLite tests skip, CI requires them
 samples/               customers.sql + countries/customers rules
+                       adventureworks/ (8-table AdventureWorks-compatible integration sample)
 ```
 
 Build & test: `dotnet build` / `dotnet test`. Pack as a tool: the CLI is a plain console
 app — `dotnet publish -c Release` and put `synthgen` on PATH.
+
+**Docs rule — one fact, one home.** Commands, options, and exit codes live here;
+operating a repair lives in [docs/runbook.md](docs/runbook.md); test strategy in
+[TESTING.md](TESTING.md); DAB in [dab/README.md](dab/README.md); the agent contract in
+[AGENTS.md](AGENTS.md); design history, frozen, in [docs/history/](docs/history/).
+Everything else links instead of restating. If a change forces the same edit in two
+docs, fix the split instead of making both edits.
 
 ## Known limits (deliberate for the first cut)
 

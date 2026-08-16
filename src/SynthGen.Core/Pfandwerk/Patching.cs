@@ -47,6 +47,10 @@ public sealed class SqlPatchSink : IPatchSink
         var isIdentity = i.WriteLedger && i.Rule.ParsedKind == RuleKind.Identity;
         var sameDatabase = string.Equals(_db.TargetConnection, _db.LedgerConnection,
                                          StringComparison.OrdinalIgnoreCase);
+        if (isIdentity && !sameDatabase)
+            throw new PatchAbortedException(
+                "patch apply requires the target and ledger to use the same database; " +
+                "separate databases cannot provide an atomic ledger reservation.");
 
         using var target = _db.OpenTarget();
         using var tx = target.BeginTransaction();
@@ -56,24 +60,20 @@ public sealed class SqlPatchSink : IPatchSink
             // cannot be replayed backwards and Revert has nothing to restore.
             var old = target.ExecuteScalar(
                 $"SELECT {i.Rule.Column} FROM {i.Rule.Table} WHERE {i.Rule.Key} = @key",
-                new { key = Coerce(i.RowKey) }, tx);
+                new { key = Canonical.DbValue(i.RowKey) }, tx);
             var oldCanonical = old is null or DBNull ? null : Canonical.Format(old);
 
             if (isIdentity && sameDatabase)
             {
-                WriteLedgerRow(target, tx, i);
+                LedgerRepository.Reserve(target, tx, i.Rule, i.RowKey, i.Value, _createdBy);
             }
-            else if (isIdentity)
-            {
-                // Separate ledger database: one local transaction cannot span both, so the
-                // ledger row means "reserved" and applied-state comes from patches.jsonl.
-                using var ledger = _db.OpenLedger();
-                WriteLedgerRow(ledger, null, i);
-            }
-
             var updated = target.Execute(
                 GapQuery.Update(i.Rule, "@key", "@value"),
-                new { key = Coerce(i.RowKey), value = i.Value is null ? null : Coerce(i.Value) }, tx);
+                new
+                {
+                    key = Canonical.DbValue(i.RowKey),
+                    value = i.Value is null ? null : Canonical.DbValue(i.Value),
+                }, tx);
 
             if (updated != 1)
                 throw new PatchAbortedException(
@@ -89,31 +89,6 @@ public sealed class SqlPatchSink : IPatchSink
         }
     }
 
-    /// <summary>
-    /// Appends the ledger row unless it is already there. A run reusing a frozen identity —
-    /// after a revert, or because the column was cleared upstream — must not record it
-    /// twice; the existing row is the whole reason the value came back. A <em>different</em>
-    /// recorded value is a real conflict and stops the run.
-    /// </summary>
-    private void WriteLedgerRow(IDbConnection conn, IDbTransaction? tx, PatchInstruction i)
-    {
-        var existing = LedgerRepository.Existing(conn, tx, i.Rule.Table, i.RowKey, i.Rule.Column);
-        if (existing is not null)
-        {
-            if (!string.Equals(existing, i.Value, StringComparison.Ordinal))
-                throw new LedgerConflictException(
-                    $"Rule '{i.Rule.Id}': the ledger records {i.Rule.Column} = '{existing}' for " +
-                    $"{i.Rule.Key} {i.RowKey}, but this run would write '{i.Value}'. Ledger rows " +
-                    "are never updated, so this needs a human.");
-            return;
-        }
-        LedgerRepository.Insert(conn, tx,
-            new LedgerEntry(i.Rule.Table, i.RowKey, i.Rule.Column, i.Value!, i.Rule.Id), _createdBy);
-    }
-
-    /// <summary>Values round-trip through artifacts as strings; hand the driver a number when it is one.</summary>
-    private static object Coerce(string value) =>
-        long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l) ? l : value;
 }
 
 public sealed class Patcher
@@ -143,29 +118,46 @@ public sealed class Patcher
         if (plan.Rules.Any(r => r.Status == "BLOCKED"))
             throw new PatchAbortedException("Plan contains a BLOCKED rule; the gate should have refused it.");
 
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(patchesPath))!);
-        using var log = new StreamWriter(patchesPath, append: false);
+        var artifactDirectory = Path.GetDirectoryName(Path.GetFullPath(patchesPath))!;
+        Directory.CreateDirectory(artifactDirectory);
+        var tempPath = Path.Combine(artifactDirectory,
+            $".{Path.GetFileName(patchesPath)}.{Guid.NewGuid():N}.tmp");
         var applied = 0;
 
-        foreach (var rulePlan in plan.Rules)
+        try
         {
-            var rule = _rules.First(r => r.Id == rulePlan.Id);
-            foreach (var patch in rulePlan.Patches)
+            using (var log = new StreamWriter(tempPath, append: false))
             {
-                var old = _sink.Apply(new PatchInstruction(rule, patch.Key[rule.Key], patch.Value, WriteLedger: true));
-                applied++;
-                log.WriteLine(JsonSerializer.Serialize(new
+                foreach (var rulePlan in plan.Rules)
                 {
-                    ts = DateTime.UtcNow.ToString("O"),
-                    rule = rule.Id,
-                    id = patch.Key,
-                    col = rule.Column,
-                    old,
-                    @new = patch.Value,
-                    reason = rule.Reason,
-                }, Compact));
+                    var rule = _rules.First(r => r.Id == rulePlan.Id);
+                    foreach (var patch in rulePlan.Patches)
+                    {
+                        var old = _sink.Apply(new PatchInstruction(
+                            rule, patch.Key[rule.Key], patch.Value, WriteLedger: true));
+                        applied++;
+                        log.WriteLine(JsonSerializer.Serialize(new
+                        {
+                            ts = DateTime.UtcNow.ToString("O"),
+                            rule = rule.Id,
+                            id = patch.Key,
+                            col = rule.Column,
+                            old,
+                            @new = patch.Value,
+                            reason = rule.Reason,
+                        }, Compact));
+                    }
+                }
+                log.Flush();
             }
+
+            File.Move(tempPath, patchesPath, overwrite: true);
+            return applied;
         }
-        return applied;
+        finally
+        {
+            if (File.Exists(tempPath))
+                File.Delete(tempPath);
+        }
     }
 }

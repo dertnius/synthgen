@@ -16,18 +16,10 @@ public static class CliSupport
     /// For --provider sqlite the connection may be a plain file path or a
     /// "Data Source=path" connection string; both resolve to the database file.
     /// </summary>
-    public static string ExtractSqliteDataSource(string connection)
-    {
-        if (!connection.Contains('=')) return connection;
-        foreach (var part in connection.Split(';', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var kv = part.Split('=', 2);
-            if (kv.Length == 2 &&
-                kv[0].Trim().Equals("Data Source", StringComparison.OrdinalIgnoreCase))
-                return kv[1].Trim();
-        }
-        return connection;
-    }
+    public static string ExtractSqliteDataSource(string connection) =>
+        connection.Contains('=')
+            ? new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(connection).DataSource
+            : connection;
 
     public static void PrintEvaluations(IReadOnlyList<EvaluationResult> results, TextWriter writer)
     {

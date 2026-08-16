@@ -1,5 +1,11 @@
 # pfandwerk — build plan
 
+> **Historical record, frozen 2026-08-16.** This is the design history of the pfandwerk
+> subsystem, kept for the reasoning behind decisions D1–D18. It is no longer updated;
+> where it disagrees with [README.md](../../README.md) or
+> [docs/runbook.md](../runbook.md) — including its §5 repo layout and parts of §2 D3 —
+> the current docs win.
+
 > **Errata (2026-08-16, repo consolidation).** This document is the design history; the
 > implementation has since been folded into one solution, one CLI, three projects:
 >
@@ -13,6 +19,11 @@
 > - The §4 reuse promises are now real: one `ExitCodes` scheme (`SynthGen.Core.Support`,
 >   with `EvaluationFailed = 40`), one JSON/YAML plumbing, and `CheckRunner` delegates to
 >   `SynthGen.Core.Eval.Evaluator`.
+> - **D3 amendment:** the ledger now lives in the **same database as the target** — `patch
+>   apply` refuses a separate ledger connection, because separate databases cannot provide
+>   an atomic ledger reservation. The `SqlPatchSink` fallback that wrote "reserved" ledger
+>   rows to a second database is gone; only `DabPatchSink` retains reserved-not-applied
+>   semantics (the HTTP write can never share the ledger's transaction).
 >
 > Everything else — decisions D1–D18, hard rules, phase semantics, artifacts, exit codes
 > 0/2/3/4/5/10/20/30 — is unchanged.

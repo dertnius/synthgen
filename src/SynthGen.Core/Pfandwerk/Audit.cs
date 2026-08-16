@@ -1,48 +1,7 @@
 using System.Diagnostics;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Pfandwerk;
-
-/// <summary>
-/// Builds facts.json from the run's own artifacts. Deterministic and the load-bearing
-/// component: it is the sole ground truth the report is audited against.
-/// </summary>
-public static class FactExtractor
-{
-    public static FactsDocument Extract(string patchesPath, string verifyPath,
-                                        string planPath, string approvedPath)
-    {
-        var plan = Json.Read<PlanDocument>(planPath);
-        var verify = Json.Read<VerifyDocument>(verifyPath);
-        var approval = Json.Read<Approval>(approvedPath);
-
-        var patchedByRule = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var line in File.ReadLines(patchesPath).Where(l => !string.IsNullOrWhiteSpace(l)))
-        {
-            using var doc = JsonDocument.Parse(line);
-            var rule = doc.RootElement.GetProperty("rule").GetString()!;
-            var value = doc.RootElement.GetProperty("new").ToString();
-            if (!patchedByRule.TryGetValue(rule, out var list))
-                patchedByRule[rule] = list = new List<string>();
-            list.Add(value);
-        }
-
-        var rules = plan.Rules.Select(r =>
-        {
-            var values = patchedByRule.GetValueOrDefault(r.Id) ?? new List<string>();
-            return new FactRule(r.Id, r.Column, r.Kind, values.Count,
-                                values.Take(3).ToList(), r.Reason, r.Skipped);
-        }).ToList();
-
-        var identities = plan.Rules.SelectMany(r => r.NewIdentities).ToList();
-
-        return new FactsDocument(plan.RunId, Json.Sha256File(planPath), plan.RulesSha,
-            approval.GitEmail, approval.TimestampUtc, rules, identities,
-            new FactsVerify(verify.L1, verify.L2, verify.L3,
-                            verify.Regressions, verify.PreexistingReds));
-    }
-}
 
 /// <summary>
 /// Deterministic replacement for the LLM checker (D9). Every number and rule id in the
@@ -183,14 +142,21 @@ public static class ArtifactAuditor
         }
 
         // 5. Four eyes: the approver is not the person who last changed the rules (D11).
+        //    "Rules" spans the rules file AND its sibling datasets/ directory — a reviewed
+        //    vocabulary decides patched values exactly like a rule does (D-A1), so its
+        //    author is a rules author. With an agent committing as the pinned bot identity
+        //    (D-C1), this same comparison is what makes bot-author vs human-approver real.
         if (repoRoot is not null)
         {
-            var author = LastCommitAuthor(repoRoot, rulesPath);
-            if (author is not null &&
-                string.Equals(author, approval.GitEmail, StringComparison.OrdinalIgnoreCase))
+            foreach (var source in RuleSources(rulesPath))
             {
-                v.Add(new AuditViolation("four-eyes",
-                    $"{approval.GitEmail} approved a run using rules they themselves last changed."));
+                var author = LastCommitAuthor(repoRoot, source);
+                if (author is not null &&
+                    string.Equals(author, approval.GitEmail, StringComparison.OrdinalIgnoreCase))
+                {
+                    v.Add(new AuditViolation("four-eyes",
+                        $"{approval.GitEmail} approved a run using rules they themselves last changed ({source})."));
+                }
             }
         }
 
@@ -220,6 +186,14 @@ public static class ArtifactAuditor
             yield return new AuditViolation("facts-drift", "facts.json regression list does not match verify.json.");
     }
 
+    /// <summary>The rules file, plus its datasets/ directory when one exists.</summary>
+    private static IEnumerable<string> RuleSources(string rulesPath)
+    {
+        yield return rulesPath;
+        var datasets = Path.Combine(Path.GetDirectoryName(rulesPath) ?? ".", "datasets");
+        if (Directory.Exists(datasets)) yield return datasets;
+    }
+
     /// <summary>Email of whoever last touched the rules file, or null outside a git tree.</summary>
     private static string? LastCommitAuthor(string repoRoot, string path)
     {
@@ -243,69 +217,5 @@ public static class ArtifactAuditor
         {
             return null;   // Not a git checkout; the four-eyes check simply does not apply.
         }
-    }
-}
-
-
-public sealed record PatchLogEntry(string Rule, Dictionary<string, string> Id, string Column,
-                                   string? Old, string? New);
-
-/// <summary>
-/// Replays patches.jsonl backwards (new -> old) through the same write path that applied
-/// it. Local only, never wired into CI (hard rule 7).
-///
-/// <para><b>Ledger rows are never deleted.</b> That is the point: after a revert the
-/// column is empty again, the ledger still records which identifier belongs to that row,
-/// and the next run reuses it rather than issuing a second one. Deleting them would make
-/// "frozen forever" a lie the first time anyone reverted.</para>
-/// </summary>
-public sealed class Reverter
-{
-    private readonly IPatchSink _sink;
-    private readonly List<GapRule> _rules;
-
-    public Reverter(IPatchSink sink, List<GapRule> rules) => (_sink, _rules) = (sink, rules);
-
-    public static List<PatchLogEntry> ReadLog(string patchesPath) =>
-        File.ReadLines(patchesPath)
-            .Where(l => !string.IsNullOrWhiteSpace(l))
-            .Select(l =>
-            {
-                using var doc = JsonDocument.Parse(l);
-                var root = doc.RootElement;
-                return new PatchLogEntry(
-                    root.GetProperty("rule").GetString()!,
-                    root.GetProperty("id").Deserialize<Dictionary<string, string>>(Json.Options)!,
-                    root.GetProperty("col").GetString()!,
-                    root.TryGetProperty("old", out var o) && o.ValueKind != JsonValueKind.Null ? o.ToString() : null,
-                    root.TryGetProperty("new", out var n) && n.ValueKind != JsonValueKind.Null ? n.ToString() : null);
-            })
-            .ToList();
-
-    /// <summary>
-    /// Reverts newest change first. <paramref name="ruleFilter"/> reverts one rule and
-    /// leaves the rest applied.
-    /// </summary>
-    public int Revert(string patchesPath, string? ruleFilter = null)
-    {
-        var entries = ReadLog(patchesPath);
-        entries.Reverse();
-
-        var reverted = 0;
-        foreach (var e in entries)
-        {
-            if (ruleFilter is not null && !string.Equals(e.Rule, ruleFilter, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            var rule = _rules.FirstOrDefault(r => r.Id == e.Rule)
-                       ?? throw new RulesLoadException(
-                           $"patches.jsonl references rule '{e.Rule}', which is not in the rules file.");
-
-            // WriteLedger: false — restoring a column must never append to an append-only
-            // ledger, and the existing row is what a later run reuses.
-            _sink.Apply(new PatchInstruction(rule, e.Id[rule.Key], e.Old, WriteLedger: false));
-            reverted++;
-        }
-        return reverted;
     }
 }

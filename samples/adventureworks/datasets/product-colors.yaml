@@ -1,0 +1,15 @@
+# Reviewed vocabulary (D-A1): the published AdventureWorks product colors.
+# One home for the color list: bulk generation (03-product.rules.yaml) and the
+# AW-PROD-001 repair both draw from these rows.
+columns: [Color]
+match:
+  Color: ["*color*", "*colour*"]
+rows:
+  - [Black]
+  - [Blue]
+  - [Grey]
+  - [Multi]
+  - [Red]
+  - [Silver]
+  - [White]
+  - [Yellow]

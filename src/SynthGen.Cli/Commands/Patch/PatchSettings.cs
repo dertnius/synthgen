@@ -53,6 +53,10 @@ public class PatchSettings : CommandSettings
     [Description("survey only: comma-separated tables to profile. Distinct from --only, which names rule ids.")]
     public string? Tables { get; init; }
 
+    [CommandOption("--tests <DIR>")]
+    [Description("lint only: directory scanned for the test conventions of D-C2.")]
+    public string Tests { get; init; } = "tests";
+
     [CommandOption("--sink <NAME>")]
     [Description("sql (default, transactional) or dab (REST, for sites mandating an API layer).")]
     public string Sink { get; init; } = "sql";
@@ -86,6 +90,17 @@ public class PatchSettings : CommandSettings
     public string Path(string name) => System.IO.Path.Combine(Artifacts, name);
     public DbContext Db() => new(ParsedProvider, TargetResolved, LedgerResolved);
 
+    /// <summary>The reviewed vocabularies next to the rules file: &lt;dir&gt;/datasets/*.yaml.</summary>
+    public DatasetStore Datasets() => DatasetStore.ForRulesFile(Rules);
+
+    public void EnsureApplyUsesSameDatabase()
+    {
+        if (!string.Equals(TargetResolved, LedgerResolved, StringComparison.OrdinalIgnoreCase))
+            throw new PatchAbortedException(
+                "patch apply requires the target and ledger to use the same database; " +
+                "separate databases cannot provide an atomic ledger reservation.");
+    }
+
     /// <summary>
     /// Both apply and revert build the sink here, so a run reverts through the same path
     /// that applied it.
@@ -115,24 +130,7 @@ public class PatchSettings : CommandSettings
         return all.Where(r => only.Contains(r.Id, StringComparer.OrdinalIgnoreCase)).ToList();
     }
 
-    private sealed class ConsumerChecksFile { public List<ConsumerCheck> Checks { get; set; } = new(); }
-    private sealed class ConsumerCheck
-    {
-        public string Name { get; set; } = "";
-        public string Query { get; set; } = "";
-        public int Expected { get; set; }
-    }
-
-    /// <summary>
-    /// The consumer suite as SQL assertions, so the baseline and the post-run comparison
-    /// run through one code path.
-    /// </summary>
-    public List<Check> ConsumerChecksOrEmpty()
-    {
-        if (!File.Exists(ConsumerChecks)) return new List<Check>();
-        var yaml = Yaml.Deserializer().Deserialize<ConsumerChecksFile>(File.ReadAllText(ConsumerChecks));
-        return yaml.Checks.Select(c => new Check(c.Name, c.Query, c.Expected)).ToList();
-    }
+    public List<Check> ConsumerChecksOrEmpty() => CheckRunner.LoadConsumerChecks(ConsumerChecks);
 }
 
 internal static class PatchSupport

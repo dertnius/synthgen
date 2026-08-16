@@ -4,7 +4,7 @@ using SynthGen.Core.Ddl;
 using SynthGen.Core.Generation;
 using SynthGen.Core.Load;
 using SynthGen.Core.Rules;
-using SynthGen.Sqlite;
+using SynthGen.Core.Sqlite;
 
 namespace SynthGen.Tests;
 
@@ -16,6 +16,7 @@ public sealed class AdventureWorksPfandwerkIntegrationTests : IDisposable
 {
     private static readonly string[] GenerationRules =
     {
+        "00-person.rules.yaml",
         "01-productcategory.rules.yaml",
         "02-productsubcategory.rules.yaml",
         "03-product.rules.yaml",
@@ -23,6 +24,7 @@ public sealed class AdventureWorksPfandwerkIntegrationTests : IDisposable
         "05-customer.rules.yaml",
         "06-salesorderheader.rules.yaml",
         "07-salesorderdetail.rules.yaml",
+        "08-currency.rules.yaml",
     };
 
     private readonly string _root = RulesTests.FindRepoRoot();
@@ -95,12 +97,14 @@ public sealed class AdventureWorksPfandwerkIntegrationTests : IDisposable
 
         foreach (var file in GenerationRules)
         {
-            var rules = SynthGen.Core.Rules.RulesLoader.LoadFile(Path.Combine(_sample, file));
+            var rulesPath = Path.Combine(_sample, file);
+            var rules = SynthGen.Core.Rules.RulesLoader.LoadFile(rulesPath);
+            var datasets = DatasetStore.ForRulesFile(rulesPath);
             var table = _tables.Single(t =>
                 $"{t.Schema}.{t.Name}".Equals(rules.Table, StringComparison.OrdinalIgnoreCase));
-            var plan = GenerationPlan.Build(table, rules);
+            var plan = GenerationPlan.Build(table, rules, datasets);
             var lookups = LookupFetcher.Fetch(plan, _factory.Open);
-            var loaded = new SqliteTableWriter(_factory).Load(new RowGenerator(plan, lookups));
+            var loaded = new SqliteTableWriter(_factory).Load(new RowGenerator(plan, lookups, datasets));
             Assert.Equal(rules.Rows, loaded.RowsLoaded);
         }
     }
@@ -112,14 +116,25 @@ public sealed class AdventureWorksPfandwerkIntegrationTests : IDisposable
             UPDATE [Production].[Product] SET [Color] = 'X9' WHERE [ProductID] IN (1, 2, 3);
             UPDATE [Sales].[SalesOrderHeader] SET [Status] = 0 WHERE [SalesOrderID] IN (1, 2, 3);
             UPDATE [Sales].[Customer] SET [PersonID] = NULL WHERE [CustomerID] IN (1, 2, 3);
+            UPDATE [Sales].[Currency] SET [Name] = NULL WHERE [CurrencyCode] IN (
+                SELECT [CurrencyCode] FROM [Sales].[Currency] ORDER BY [CurrencyCode] LIMIT 14);
+            INSERT INTO [Sales].[Currency] ([CurrencyCode], [Name], [ModifiedDate])
+            SELECT 'ZZZ', NULL, '2024-01-01 00:00:00'
+            WHERE NOT EXISTS (SELECT 1 FROM [Sales].[Currency] WHERE [CurrencyCode] = 'ZZZ');
             """);
     }
 
     private VerifyDocument RunPatch(DbContext db, LedgerRepository ledger, string runId, int seed)
     {
         Directory.CreateDirectory(_artifacts);
-        var plan = new Planner(db, ledger, _gapRules, seed).Plan(runId, "sample-rules");
+        var datasets = DatasetStore.ForRulesFile(Path.Combine(_sample, "gaps.yaml"));
+        var plan = new Planner(db, ledger, _gapRules, seed, datasets).Plan(runId, "sample-rules");
         Json.Write(P("plan.json"), plan);
+
+        // The ZZZ code is not in the currency vocabulary: the planner must list it as
+        // skipped for a person, never guess a name for it.
+        var currency = plan.Rules.Single(r => r.Id == "CUR-001");
+        Assert.Single(currency.Skipped);
         var baseline = new BaselineDocument(runId,
             CheckRunner.Run(db, CheckRunner.Invariants(_gapRules)),
             CheckRunner.Run(db, ConsumerChecks()));
@@ -150,6 +165,16 @@ public sealed class AdventureWorksPfandwerkIntegrationTests : IDisposable
             "SELECT COUNT(*) FROM [Sales].[SalesOrderHeader] WHERE [Status] < 1 OR [Status] > 5"));
         Assert.Equal(0, conn.ExecuteScalar<int>(
             "SELECT COUNT(*) FROM [Sales].[Customer] WHERE [PersonID] IS NULL"));
+        Assert.Equal(0, conn.ExecuteScalar<int>("""
+            SELECT COUNT(*) FROM [Sales].[Customer] c
+            LEFT JOIN [Person].[Person] p ON p.[PersonID] = c.[PersonID]
+            WHERE c.[PersonID] IS NOT NULL AND p.[PersonID] IS NULL
+            """));
+        // Every known code got its ISO name back; the unknown ZZZ row stayed untouched.
+        Assert.Equal(0, conn.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM [Sales].[Currency] WHERE [Name] IS NULL AND [CurrencyCode] <> 'ZZZ'"));
+        Assert.Equal(1, conn.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM [Sales].[Currency] WHERE [CurrencyCode] = 'ZZZ' AND [Name] IS NULL"));
     }
 
     private List<Check> ConsumerChecks() =>
@@ -160,6 +185,13 @@ public sealed class AdventureWorksPfandwerkIntegrationTests : IDisposable
             "SELECT COUNT(*) FROM Sales.SalesOrderHeader WHERE Status < 1 OR Status > 5", 0),
         new("AdventureWorks.CustomerPersonPresent",
             "SELECT COUNT(*) FROM Sales.Customer WHERE PersonID IS NULL", 0),
+        new("AdventureWorks.CustomerPersonOrphans", """
+            SELECT COUNT(*) FROM Sales.Customer c
+            LEFT JOIN Person.Person p ON p.PersonID = c.PersonID
+            WHERE c.PersonID IS NOT NULL AND p.PersonID IS NULL
+            """, 0),
+        new("AdventureWorks.CurrencyNamesPresent",
+            "SELECT COUNT(*) FROM Sales.Currency WHERE Name IS NULL AND CurrencyCode <> 'ZZZ'", 0),
         new("AdventureWorks.ProductRowCountStable",
             "SELECT COUNT(*) FROM Production.Product", 200),
         new("AdventureWorks.CustomerRowCountStable",

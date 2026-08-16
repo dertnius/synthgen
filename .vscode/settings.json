@@ -1,0 +1,17 @@
+{
+  // Copilot loads AGENTS.md as always-on instructions on every chat request.
+  "chat.useAgentsMdFile": true,
+
+  // Hard rule 6 on the editor surface. Deny entries (false) win over allow entries.
+  "chat.tools.terminal.autoApprove": {
+    // Read-only harness verbs run without a click — dev form and packed form.
+    "/^dotnet run --project (\\.[\\\\/])?src[\\\\/]SynthGen\\.Cli .*-- patch (survey|generators|plan|verify|report)\\b/": true,
+    "/^synthgen patch (survey|generators|plan|verify|report)\\b/": true,
+    "/^dotnet (build|test)\\b/": true,
+
+    // One-way doors always prompt, even under a broad allow. run.ps1 is the
+    // human's command, not the agent's — it contains the gate.
+    "/patch (approve|apply|revert)\\b/": false,
+    "/run\\.ps1/": false
+  }
+}

@@ -1,5 +1,5 @@
 @{
-    # SynthGen enterprise profile — consumed by scripts/setup-enterprise.ps1.
+    # SynthGen enterprise profile — consumed by scripts/enterprise/setup-enterprise.ps1.
     #
     # This file is COMMITTED with placeholder values. In your enterprise fork, edit it
     # in place with your internal endpoints and commit — every teammate then gets a

@@ -77,7 +77,7 @@ public sealed class DabPatchSinkTests : IDisposable
         Assert.Equal("/api/Security/PropertyId/104", patch.Path);
 
         using var body = JsonDocument.Parse(patch.Body!);
-        Assert.Equal(1, body.RootElement.EnumerateObject().Count());
+        Assert.Single(body.RootElement.EnumerateObject());
         Assert.Equal(3, body.RootElement.GetProperty("Bathrooms").GetInt32());
     }
 
@@ -190,7 +190,7 @@ public sealed class DabPatchSinkTests : IDisposable
     [InlineData("A+", "\"A+\"")]
     [InlineData(null, "null")]
     public void Numeric_values_serialise_as_numbers_and_the_rest_as_strings(string? value, string expected) =>
-        Assert.Equal(expected, DabPatchSink.JsonValue(value));
+        Assert.Equal(expected, Canonical.JsonValue(value));
 
     [Fact]
     public void Composite_keys_are_refused_rather_than_half_supported()
@@ -198,7 +198,7 @@ public sealed class DabPatchSinkTests : IDisposable
         var composite = new GapRule
         {
             Id = "X-001", Table = "dbo.Security", Key = "PropertyId,Version", Column = "Bathrooms",
-            Kind = "ephemeral", Gap = "1=1", Fix = "property.energyClass", Threshold = 1, Reason = "r",
+            Kind = "ephemeral", Gap = "1=1", Fix = "dataset.energy-classes", Threshold = 1, Reason = "r",
         };
         var ex = Assert.Throws<PatchAbortedException>(() => DabPatchSink.Entity(composite));
         Assert.Contains("single-column keys only", ex.Message);

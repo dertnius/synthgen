@@ -30,7 +30,8 @@ public sealed class GenerationPlan
     /// Resolves rules against the DDL: every column gets an effective rule (explicit or
     /// inferred), db-generated columns are excluded, and misconfigurations are surfaced.
     /// </summary>
-    public static GenerationPlan Build(TableDefinition table, RulesFile rules)
+    public static GenerationPlan Build(TableDefinition table, RulesFile rules,
+                                       DatasetStore? datasets = null)
     {
         var plan = new GenerationPlan { Table = table, Rules = rules };
 
@@ -56,7 +57,7 @@ public sealed class GenerationPlan
             }
 
             var rule = explicitRule is null || explicitRule.Strategy is null or "auto"
-                ? MergeInferred(explicitRule, ColumnInference.Infer(col, table))
+                ? MergeInferred(explicitRule, ColumnInference.Infer(col, table, datasets))
                 : explicitRule;
 
             if (col.IsIdentity)

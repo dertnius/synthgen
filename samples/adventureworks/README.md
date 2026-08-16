@@ -1,15 +1,16 @@
 # AdventureWorks sample
 
-A 7-table subset structurally faithful to Microsoft's public **AdventureWorks** SQL Server
+An 8-table subset structurally faithful to Microsoft's public **AdventureWorks** SQL Server
 sample database — the "real example" for local integration testing.
 
 | # | Table | Rows | What it exercises |
 |---|---|---|---|
+| 00 | `Person.Person` | 1000 | valid parent IDs for customer references |
 | 01 | `Production.ProductCategory` | 4 | identity PK, unique Name + rowguid, NEWID()/GETDATE() defaults |
 | 02 | `Production.ProductSubcategory` | 12 | FK lookup into step 01 |
 | 03 | `Production.Product` | 200 | 21 columns, 7 CHECK constraints, nullable FK, nchar/money/decimal |
 | 04 | `Sales.SalesTerritory` | 10 | reserved-word column `[Group]`, real territory names |
-| 05 | `Sales.Customer` | 300 | computed `AccountNumber` (skipped), cross-schema FK |
+| 05 | `Sales.Customer` | 300 | computed `AccountNumber` (skipped), valid Person parent lookup |
 | 06 | `Sales.SalesOrderHeader` | 500 | computed `TotalDue`, date-ordering CHECKs, weighted status |
 | 07 | `Sales.SalesOrderDetail` | 2000 | **composite PK with IDENTITY** (explicit sequence rule), two FKs |
 

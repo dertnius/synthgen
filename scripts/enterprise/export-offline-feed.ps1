@@ -3,6 +3,8 @@
 Exports the solution's complete NuGet dependency closure as a portable folder feed.
 
 .DESCRIPTION
+FROZEN since 2026-08: kept for air-gapped sites, not actively maintained.
+
 Run this on a machine that has restored the solution at least once (connected to
 nuget.org OR an internal mirror). It reads every project.assets.json, collects the
 exact package closure (ids + pinned versions), and copies the .nupkg files from the
@@ -13,7 +15,7 @@ On the restricted machine, restore entirely from that folder:
 
     dotnet restore SynthGen.sln --source <path-to-offline-packages>
 
-or wire it permanently via NuGet.config (see NuGet.enterprise.config.example).
+or wire it permanently via the NuGet.config that setup-enterprise.ps1 generates.
 #>
 [CmdletBinding()]
 param(
@@ -21,7 +23,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$root = Resolve-Path (Join-Path $PSScriptRoot '..')
+$root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 $globalPackages = if ($env:NUGET_PACKAGES) { $env:NUGET_PACKAGES } else { Join-Path $env:USERPROFILE '.nuget\packages' }
 
 $assetFiles = Get-ChildItem -Path $root -Recurse -Filter project.assets.json

@@ -10,6 +10,9 @@ permissions:
 jobs:
   dotnet:
     runs-on: ubuntu-latest
+    permissions:
+      # write so the job can push the built dashboard to the gh-pages branch
+      contents: write
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
       DOTNET_NOLOGO: "1"
@@ -32,9 +35,29 @@ jobs:
         run: dotnet build SynthGen.sln -c Release --nologo
       - name: Test (SQLite is mandatory)
         run: dotnet test SynthGen.sln -c Release --no-build --nologo --logger "console;verbosity=minimal"
+      # The offline half of rule validation (D-B3): schema, predicate AST, fix keys
+      # including datasets, and the D-C2 test conventions. No database involved.
+      - name: Lint the shipped rules
+        run: >-
+          dotnet run --project src/SynthGen.Cli -c Release --no-build --
+          patch lint --rules rules/gaps.yaml
+      - name: Lint the AdventureWorks sample rules
+        run: >-
+          dotnet run --project src/SynthGen.Cli -c Release --no-build --
+          patch lint --rules samples/adventureworks/gaps.yaml
       - name: Run AdventureWorks pfandwerk E2E
         shell: pwsh
         run: pwsh -NoLogo -NoProfile -File samples/adventureworks/run-pfandwerk.ps1
+      # The notary recomputes what it can from the run's artifacts and cross-checks the
+      # rest: plan hash vs plan.approved, the rules hash the plan was built from,
+      # facts.json vs a fresh extraction from patches.jsonl, report.md vs facts.json,
+      # and four-eyes (the approver must not be whoever last changed the rules).
+      - name: Notary — audit the E2E artifacts
+        run: >-
+          dotnet run --project src/SynthGen.Cli -c Release --no-build --
+          patch notary
+          --artifacts scratch/adventureworks-artifacts
+          --rules samples/adventureworks/gaps.yaml
       - name: Upload AdventureWorks evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -44,3 +67,28 @@ jobs:
           path: |
             scratch/adventureworks-artifacts/**
             scratch/adventureworks*.db
+      # The dashboard builds even when the E2E failed: missing artifacts render as
+      # "not produced" so a red run stays visible instead of keeping the last green page.
+      - name: Build AdventureWorks dashboard
+        if: always()
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -File samples/adventureworks/build-dashboard.ps1
+      # Classic branch deployment: Pages serves the gh-pages branch. The workflow-based
+      # deploy-pages action is not used because the auto-created github-pages environment
+      # restricts deployments to main. Force push is intentional — the branch is a plain
+      # publish target with no history worth keeping; the newest push wins.
+      - name: Publish dashboard to gh-pages
+        if: always() && github.event_name == 'push'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd scratch/pages
+          touch .nojekyll
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "AdventureWorks E2E dashboard for ${GITHUB_SHA}"
+          git push -q --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
