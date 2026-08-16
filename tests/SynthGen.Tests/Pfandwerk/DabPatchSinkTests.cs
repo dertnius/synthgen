@@ -77,7 +77,7 @@ public sealed class DabPatchSinkTests : IDisposable
         Assert.Equal("/api/Security/PropertyId/104", patch.Path);
 
         using var body = JsonDocument.Parse(patch.Body!);
-        Assert.Equal(1, body.RootElement.EnumerateObject().Count());
+        Assert.Single(body.RootElement.EnumerateObject());
         Assert.Equal(3, body.RootElement.GetProperty("Bathrooms").GetInt32());
     }
 
