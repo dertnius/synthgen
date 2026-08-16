@@ -50,6 +50,11 @@ copilot -p prompts/draft-rules.md \
   --add-dir "$PWD/rules/drafts" --deny-url --no-color
 ```
 
+The same works from VS Code: pick the **pfandwerk-scribe** agent in Copilot Chat and run
+`/draft-rules` — same prompt, same contract, and the committed `.vscode/settings.json`
+keeps `approve`/`apply`/`revert` behind an approval prompt (see `VSCODE-COPILOT-PLAN.md`
+while it lands).
+
 Drafts land in `rules/drafts/` and are **not rules**. You edit them down and move what
 survives into `rules/gaps.yaml` yourself. The agent cannot choose `kind` or `threshold` for
 you — those are the one-way doors — and a draft still has to clear predicate validation,

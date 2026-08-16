@@ -22,9 +22,13 @@ markdown file.
    every gap predicate, not by convention.
 5. Connection strings must match `allowlist.json` on Server + Database + auth mode, or the
    run aborts. Allowlist entries never contain passwords.
-6. Copilot CLI runs locally only; agent tool access is denied by default via the CLI's own
-   permission system — `--available-tools` for visibility, `--deny-tool` for exceptions,
-   `--add-dir` for filesystem scope, `--deny-url` for network. Not hooks: the CLI has none.
+6. Copilot runs locally only; agent tool access is denied by default via each surface's
+   own permission system — CLI: `--available-tools` for visibility, `--deny-tool` for
+   exceptions, `--add-dir` for filesystem scope, `--deny-url` for network; VS Code: the
+   `tools` allowlist in `.github/agents/` frontmatter plus the committed
+   `chat.tools.terminal.autoApprove` deny entries in `.vscode/settings.json`. Not hooks:
+   the CLI has none and this design uses none in VS Code. Approve, apply, and revert are
+   never run by an agent on any surface.
 7. Revert is never wired into CI.
 8. `report.md` ships only with `audit=pass` from `ReportAuditor`, or as the bare-facts
    fallback.
