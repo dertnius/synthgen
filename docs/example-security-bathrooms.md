@@ -4,8 +4,8 @@ An end-to-end run over one table with two rules of different kinds. It exists to
 every part of pfandwerk fits together on data you can read in full, and to record two
 design changes this example forced.
 
-Fixture: [`security.sql`](../db/pfandwerk/fixtures/security.sql) ·
-[`security-broken-seed.sql`](../db/pfandwerk/fixtures/security-broken-seed.sql) ·
+Fixture: built in C# by the end-to-end tests
+([`EndToEndTests.cs`](../tests/SynthGen.Tests/Pfandwerk/EndToEndTests.cs)) ·
 rules: [`rules/gaps.yaml`](../rules/gaps.yaml) (SEC-001, SEC-002)
 
 ## 1. The data

@@ -71,7 +71,7 @@ public sealed class EvaluateCommand : Command<EvaluateCommand.Settings>
         }
         else if (settings.Provider.Equals("sqlserver", StringComparison.OrdinalIgnoreCase))
         {
-            evaluator = new Evaluator(connection);
+            evaluator = new Evaluator(() => new Microsoft.Data.SqlClient.SqlConnection(connection));
         }
         else
         {

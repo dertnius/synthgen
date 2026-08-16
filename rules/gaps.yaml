@@ -30,55 +30,8 @@
 # Domain-specific `fix` keys live in Pfandwerk's reviewed generator whitelist. SynthGen's
 # FakerMap remains available for generic faker methods, while the domain map is the only
 # place allowed to add deterministic repair behavior.
-#
-# NOTE for P3a: derived rules need a SECOND whitelist. Func<Faker, object> cannot see the
-# row, so a derived generator's signature is Func<IReadOnlyDictionary<string, object?>,
-# object> over the columns named in `inputs`. Keep the two maps separate rather than
-# widening the ephemeral signature: an ephemeral generator that could read the row would
-# silently become order-dependent, and its output would stop being reproducible from the
-# plan alone.
 
 rules:
-  - id: PROP-001
-    table: dbo.Property
-    key: PropertyId
-    column: EnergyClass
-    kind: ephemeral
-    gap: "EnergyClass IS NULL OR EnergyClass = 'X9'"
-    fix: property.energyClass
-    threshold: 500
-    reason: >-
-      The upstream valuation interface writes the sentinel 'X9' when its energy-rating
-      lookup times out, and NULL when the source record predates the rating scheme.
-      Consumer tests filter and group by EnergyClass, so both values break them.
-
-  - id: PROP-002
-    table: dbo.Property
-    key: PropertyId
-    column: YearBuilt
-    kind: ephemeral
-    gap: "YearBuilt IS NULL OR YearBuilt = 0"
-    fix: property.yearBuilt
-    threshold: 500
-    reason: >-
-      The import maps an absent construction year to 0 rather than NULL. Age arithmetic in
-      the consumer suite then produces two-thousand-year-old buildings, which fails the
-      range assertions rather than the null checks.
-
-  - id: PROP-003
-    table: dbo.Property
-    key: PropertyId
-    column: SecurityId
-    kind: identity
-    gap: "SecurityId IS NULL"
-    fix: property.securityId
-    threshold: 50
-    reason: >-
-      Securitised properties require a SecurityId that downstream systems treat as a stable
-      external reference. Rows arriving without one cannot be matched across systems. Values
-      generated here are recorded in the ledger and reused forever, so a run never issues a
-      second identifier for the same property.
-
   # --- dbo.Security ------------------------------------------------------------------
   # Worked end-to-end in docs/example-security-bathrooms.md.
 

@@ -58,12 +58,5 @@ public sealed class SqliteConnectionFactory
         return conn;
     }
 
-    /// <summary>Deletes the main and schema database files (test cleanup).</summary>
-    public void DeleteFiles()
-    {
-        foreach (var file in new[] { _databasePath }.Concat(_schemas.Select(SchemaFile)))
-            if (File.Exists(file)) File.Delete(file);
-    }
-
     private static string Quote(string identifier) => $"\"{identifier.Replace("\"", "\"\"")}\"";
 }

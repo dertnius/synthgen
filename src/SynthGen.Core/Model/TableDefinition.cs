@@ -7,7 +7,6 @@ public sealed class TableDefinition
     public string Name { get; set; } = "";
     public List<ColumnDefinition> Columns { get; set; } = new();
     public List<string> PrimaryKeyColumns { get; set; } = new();
-    public List<UniqueConstraintDefinition> UniqueConstraints { get; set; } = new();
     public List<ForeignKeyDefinition> ForeignKeys { get; set; } = new();
     public List<CheckConstraintDefinition> CheckConstraints { get; set; } = new();
 
@@ -38,12 +37,6 @@ public sealed class ColumnDefinition
 
     /// <summary>Columns the generator can never write to (DB owns the value).</summary>
     public bool IsDbGenerated => IsComputed || IsRowVersion;
-}
-
-public sealed class UniqueConstraintDefinition
-{
-    public string? Name { get; set; }
-    public List<string> Columns { get; set; } = new();
 }
 
 public sealed class ForeignKeyDefinition

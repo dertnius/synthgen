@@ -7,7 +7,13 @@ namespace SynthGen.Core.Load;
 /// <summary>Writes generated rows to CSV — the no-database path for dry runs and inspection.</summary>
 public static class CsvWriter
 {
-    public static long Write(RowGenerator generator, TextWriter writer)
+    public static long WriteFile(RowGenerator generator, string path)
+    {
+        using var writer = new StreamWriter(path, append: false, Encoding.UTF8);
+        return Write(generator, writer);
+    }
+
+    private static long Write(RowGenerator generator, TextWriter writer)
     {
         writer.WriteLine(string.Join(",", generator.Columns.Select(c => Escape(c.Column.Name))));
 
@@ -18,12 +24,6 @@ public static class CsvWriter
             count++;
         }
         return count;
-    }
-
-    public static long WriteFile(RowGenerator generator, string path)
-    {
-        using var writer = new StreamWriter(path, append: false, Encoding.UTF8);
-        return Write(generator, writer);
     }
 
     private static string Format(object? value) => value switch
