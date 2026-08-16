@@ -57,7 +57,7 @@ pwsh scripts/setup-sqlite.ps1
 ```
 
 creates the `synthgen-sqlite` conda env with the sqlite package. (On enterprise networks,
-`scripts/setup-enterprise.ps1` runs this for you as part of its one-command setup — manual
+`scripts/enterprise/setup-enterprise.ps1` runs this for you as part of its one-command setup — manual
 invocation remains supported.) Discovery order:
 
 1. `SYNTHGEN_SQLITE_DLL` environment variable (explicit pin)

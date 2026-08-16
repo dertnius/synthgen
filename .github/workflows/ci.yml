@@ -38,6 +38,16 @@ jobs:
       - name: Run AdventureWorks pfandwerk E2E
         shell: pwsh
         run: pwsh -NoLogo -NoProfile -File samples/adventureworks/run-pfandwerk.ps1
+      # The notary recomputes what it can from the run's artifacts and cross-checks the
+      # rest: plan hash vs plan.approved, the rules hash the plan was built from,
+      # facts.json vs a fresh extraction from patches.jsonl, report.md vs facts.json,
+      # and four-eyes (the approver must not be whoever last changed the rules).
+      - name: Notary — audit the E2E artifacts
+        run: >-
+          dotnet run --project src/SynthGen.Cli -c Release --no-build --
+          patch notary
+          --artifacts scratch/adventureworks-artifacts
+          --rules samples/adventureworks/gaps.yaml
       - name: Upload AdventureWorks evidence
         if: always()
         uses: actions/upload-artifact@v4

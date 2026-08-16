@@ -34,7 +34,7 @@ No SQL Server handy? The whole loop also runs against SQLite for local smoke tes
 
 On a restricted network (nuget.org/anaconda.org blocked)? One command reconfigures every
 dependency and proves the environment works:
-`powershell -ExecutionPolicy Bypass -File scripts\setup-enterprise.ps1` — see
+`powershell -ExecutionPolicy Bypass -File scripts\enterprise\setup-enterprise.ps1` — see
 [ENTERPRISE-SETUP.md](ENTERPRISE-SETUP.md) for the profile, offline mode, and exit codes.
 
 During development, replace `synthgen` with `dotnet run --project src/SynthGen.Cli --`.
