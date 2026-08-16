@@ -1,7 +1,7 @@
 using System.Text;
 using SynthGen.Core.Model;
 
-namespace SynthGen.Sqlite;
+namespace SynthGen.Core.Sqlite;
 
 /// <summary>
 /// Materializes a parsed MSSQL table as a SQLite table so rules can be smoke-tested

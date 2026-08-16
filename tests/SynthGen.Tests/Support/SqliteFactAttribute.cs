@@ -1,4 +1,4 @@
-using SynthGen.Sqlite;
+using SynthGen.Core.Sqlite;
 
 namespace SynthGen.Tests.Support;
 

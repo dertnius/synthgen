@@ -55,18 +55,20 @@ public sealed class EvaluateCommand : Command<EvaluateCommand.Settings>
         Evaluator evaluator;
         if (settings.Provider.Equals("sqlite", StringComparison.OrdinalIgnoreCase))
         {
-            if (!SynthGen.Sqlite.SqliteNative.TryInitialize(out var sqliteError))
+            if (!SynthGen.Core.Sqlite.SqliteNative.TryInitialize(out var sqliteError))
             {
                 Console.Error.WriteLine($"error: {sqliteError}");
                 return ExitCodes.ConfigError;
             }
-            // Attach the schema of the rules' target table (default dbo) so MSSQL-style
-            // [schema].[table] queries resolve.
+            // Attach the schema of the rules' target table (default dbo) plus whatever
+            // shard files the generation run created, so MSSQL-style [schema].[table]
+            // queries resolve even when an evaluation reads a second schema.
+            var dataSource = CliSupport.ExtractSqliteDataSource(connection);
             var schema = rules.Table?.Contains('.') == true
                 ? rules.Table.Split('.')[0].Trim('[', ']')
                 : "dbo";
-            var factory = new SynthGen.Sqlite.SqliteConnectionFactory(
-                CliSupport.ExtractSqliteDataSource(connection), new[] { schema });
+            var factory = new SynthGen.Core.Sqlite.SqliteConnectionFactory(dataSource,
+                new[] { schema }.Concat(SynthGen.Core.Sqlite.SqliteConnectionFactory.DiscoverSchemas(dataSource)));
             evaluator = new Evaluator(() => factory.Open());
         }
         else if (settings.Provider.Equals("sqlserver", StringComparison.OrdinalIgnoreCase))

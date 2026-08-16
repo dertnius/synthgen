@@ -8,7 +8,7 @@ using SynthGen.Core.Eval;
 using SynthGen.Core.Generation;
 using SynthGen.Core.Load;
 using SynthGen.Core.Rules;
-using SynthGen.Sqlite;
+using SynthGen.Core.Sqlite;
 
 namespace SynthGen.Cli.Commands;
 
@@ -233,14 +233,7 @@ public sealed class GenerateCommand : Command<GenerateCommand.Settings>
         var names = generator.Columns.Select(c => c.Column.Name).ToArray();
         Console.WriteLine(string.Join(" | ", names));
         foreach (var row in generator.Rows().Take(sample))
-        {
-            Console.WriteLine(string.Join(" | ", row.Select(v => v switch
-            {
-                null => "NULL",
-                byte[] b => $"0x{Convert.ToHexString(b)}",
-                _ => Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture),
-            })));
-        }
+            Console.WriteLine(string.Join(" | ", row.Select(v => v is null ? "NULL" : CsvWriter.Format(v))));
         Console.WriteLine($"({sample} of {generator.RowCount} rows, seed {generator.EffectiveSeed}, dry run — nothing written)");
         return ExitCodes.Ok;
     }

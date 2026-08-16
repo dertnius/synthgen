@@ -190,7 +190,7 @@ public sealed class DabPatchSinkTests : IDisposable
     [InlineData("A+", "\"A+\"")]
     [InlineData(null, "null")]
     public void Numeric_values_serialise_as_numbers_and_the_rest_as_strings(string? value, string expected) =>
-        Assert.Equal(expected, DabPatchSink.JsonValue(value));
+        Assert.Equal(expected, Canonical.JsonValue(value));
 
     [Fact]
     public void Composite_keys_are_refused_rather_than_half_supported()

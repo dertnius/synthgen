@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using SQLitePCL;
 
-namespace SynthGen.Sqlite;
+namespace SynthGen.Core.Sqlite;
 
 /// <summary>
 /// Wires Microsoft.Data.Sqlite to an explicitly provisioned native sqlite3 library.

@@ -59,27 +59,11 @@ public sealed class GapRule
 
 public static class GapRulesLoader
 {
-    public static GapRulesFile LoadFile(string path)
-    {
-        if (!File.Exists(path)) throw new RulesLoadException($"Rules file not found: {path}");
-        return Load(File.ReadAllText(path));
-    }
+    public static GapRulesFile LoadFile(string path) => Load(RulesLoader.ReadFile(path));
 
     public static GapRulesFile Load(string yaml)
     {
-        var deserializer = Yaml.Deserializer();
-
-        GapRulesFile file;
-        try
-        {
-            file = deserializer.Deserialize<GapRulesFile>(yaml)
-                   ?? throw new RulesLoadException("Rules file is empty.");
-        }
-        catch (YamlDotNet.Core.YamlException ex)
-        {
-            throw new RulesLoadException($"Rules YAML is invalid at {ex.Start}: {ex.Message}", ex);
-        }
-
+        var file = RulesLoader.Deserialize<GapRulesFile>(yaml);
         Validate(file);
         return file;
     }
@@ -228,7 +212,7 @@ public static class GapQuery
     /// <summary>Rows still matching the gap among a specific planned key set (VERIFY layer 1).</summary>
     public static string RemainingAmong(GapRule rule, IEnumerable<string> keys)
     {
-        var list = string.Join(", ", keys.Select(Literal));
+        var list = string.Join(", ", keys.Select(Canonical.SqlLiteral));
         return $"SELECT {rule.Key} FROM {rule.Table} WHERE ({rule.Gap}) AND {rule.Key} IN ({list})";
     }
 
@@ -265,8 +249,4 @@ public static class GapQuery
 
     public static string Update(GapRule rule, string keyParam, string valueParam) =>
         $"UPDATE {rule.Table} SET {rule.Column} = {valueParam} WHERE {rule.Key} = {keyParam}";
-
-    /// <summary>Keys arrive as strings from artifacts; numeric ones must not be quoted.</summary>
-    private static string Literal(string key) =>
-        long.TryParse(key, out _) ? key : "'" + key.Replace("'", "''") + "'";
 }

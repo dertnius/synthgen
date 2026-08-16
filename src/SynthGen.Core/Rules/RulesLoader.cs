@@ -9,28 +9,33 @@ public sealed class RulesLoadException : Exception
 
 public static class RulesLoader
 {
-    public static RulesFile LoadFile(string path)
-    {
-        if (!File.Exists(path))
-            throw new RulesLoadException($"Rules file not found: {path}");
-        return Load(File.ReadAllText(path));
-    }
+    /// <summary>The one file-exists guard every rules-shaped YAML file goes through.</summary>
+    internal static string ReadFile(string path) =>
+        File.Exists(path) ? File.ReadAllText(path)
+                          : throw new RulesLoadException($"Rules file not found: {path}");
 
-    public static RulesFile Load(string yaml)
+    /// <summary>
+    /// The one YAML deserialization path, shared with the pfandwerk loaders so the
+    /// position-bearing error contract cannot drift between rule-file kinds.
+    /// </summary>
+    internal static T Deserialize<T>(string yaml) where T : class
     {
-        var deserializer = Yaml.Deserializer();
-
-        RulesFile rules;
         try
         {
-            rules = deserializer.Deserialize<RulesFile>(yaml)
+            return Yaml.Deserializer().Deserialize<T>(yaml)
                 ?? throw new RulesLoadException("Rules file is empty.");
         }
         catch (YamlDotNet.Core.YamlException ex)
         {
             throw new RulesLoadException($"Rules YAML is invalid at {ex.Start}: {ex.Message}", ex);
         }
+    }
 
+    public static RulesFile LoadFile(string path) => Load(ReadFile(path));
+
+    public static RulesFile Load(string yaml)
+    {
+        var rules = Deserialize<RulesFile>(yaml);
         Validate(rules);
         return rules;
     }

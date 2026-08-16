@@ -26,7 +26,8 @@ public static class CsvWriter
         return count;
     }
 
-    private static string Format(object? value) => value switch
+    /// <summary>The one rendering of a generated value as text — CSV cells and dry-run samples alike.</summary>
+    public static string Format(object? value) => value switch
     {
         null => "",
         bool b => b ? "1" : "0",

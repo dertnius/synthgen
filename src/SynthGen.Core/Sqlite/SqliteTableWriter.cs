@@ -3,7 +3,7 @@ using Microsoft.Data.Sqlite;
 using SynthGen.Core.Generation;
 using SynthGen.Core.Load;
 
-namespace SynthGen.Sqlite;
+namespace SynthGen.Core.Sqlite;
 
 /// <summary>
 /// <see cref="ITableLoader"/> for SQLite: prepared single-row INSERTs inside one

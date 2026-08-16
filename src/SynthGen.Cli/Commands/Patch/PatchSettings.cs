@@ -123,24 +123,7 @@ public class PatchSettings : CommandSettings
         return all.Where(r => only.Contains(r.Id, StringComparer.OrdinalIgnoreCase)).ToList();
     }
 
-    private sealed class ConsumerChecksFile { public List<ConsumerCheck> Checks { get; set; } = new(); }
-    private sealed class ConsumerCheck
-    {
-        public string Name { get; set; } = "";
-        public string Query { get; set; } = "";
-        public int Expected { get; set; }
-    }
-
-    /// <summary>
-    /// The consumer suite as SQL assertions, so the baseline and the post-run comparison
-    /// run through one code path.
-    /// </summary>
-    public List<Check> ConsumerChecksOrEmpty()
-    {
-        if (!File.Exists(ConsumerChecks)) return new List<Check>();
-        var yaml = Yaml.Deserializer().Deserialize<ConsumerChecksFile>(File.ReadAllText(ConsumerChecks));
-        return yaml.Checks.Select(c => new Check(c.Name, c.Query, c.Expected)).ToList();
-    }
+    public List<Check> ConsumerChecksOrEmpty() => CheckRunner.LoadConsumerChecks(ConsumerChecks);
 }
 
 internal static class PatchSupport

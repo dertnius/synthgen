@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using Dapper;
 using Spectre.Console.Cli;
-using SynthGen.Sqlite;
+using SynthGen.Core.Sqlite;
 
 namespace SynthGen.Cli.Commands;
 
@@ -34,7 +34,8 @@ public sealed class AdventureWorksCorruptCommand : Command<AdventureWorksCorrupt
             return ExitCodes.ConfigError;
         }
 
-        var factory = new SqliteConnectionFactory(settings.Connection, new[] { "Production", "Sales" });
+        var factory = new SqliteConnectionFactory(settings.Connection,
+            SqliteConnectionFactory.DiscoverSchemas(settings.Connection));
         using var conn = factory.Open();
         conn.Execute("""
             UPDATE [Production].[Product]
