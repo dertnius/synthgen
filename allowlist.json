@@ -1,0 +1,39 @@
+{
+  "$comment": [
+    "Connection targets pfandwerk is permitted to touch. A run whose connection does not",
+    "match an entry here aborts with exit 4 (hard rule 5).",
+    "",
+    "Entries carry Server + Database + auth mode ONLY. They are matched canonically via",
+    "SqlConnectionStringBuilder, never by raw string comparison, so casing, whitespace and",
+    "key order do not matter.",
+    "",
+    "This file is committed. Never add a password, a token, or a full connection string:",
+    "the loader hard-rejects any entry carrying a credential key, because one pasted here",
+    "would remain in git history permanently even after being removed.",
+    "",
+    "P3a note: that rejection must scan the VALUES of targets[] and ledger[] entries, not",
+    "the raw file text. A whole-file grep would match this comment and reject the file it",
+    "is documenting.",
+    "",
+    "Dev and test databases only. Production is out of scope for this tool."
+  ],
+  "targets": [
+    {
+      "server": "localhost\\SQLEXPRESS",
+      "database": "PropertyDev",
+      "auth": "integrated"
+    },
+    {
+      "server": "localhost\\SQLEXPRESS",
+      "database": "PropertyTest",
+      "auth": "integrated"
+    }
+  ],
+  "ledger": [
+    {
+      "server": "localhost\\SQLEXPRESS",
+      "database": "PfandwerkConfig",
+      "auth": "integrated"
+    }
+  ]
+}

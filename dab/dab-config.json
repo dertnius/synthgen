@@ -1,0 +1,106 @@
+{
+  "$schema": "https://github.com/Azure/data-api-builder/releases/latest/download/dab.draft.schema.json",
+  "data-source": {
+    "database-type": "mssql",
+    "connection-string": "@env('PFANDWERK_TARGET_CONNECTION')"
+  },
+  "runtime": {
+    "rest": {
+      "enabled": true,
+      "path": "/api",
+      "request-body-strict": true
+    },
+    "graphql": {
+      "enabled": false,
+      "path": "/graphql",
+      "allow-introspection": true
+    },
+    "mcp": {
+      "enabled": false,
+      "path": "/mcp"
+    },
+    "host": {
+      "cors": {
+        "origins": [],
+        "allow-credentials": false
+      },
+      "authentication": {
+        "provider": "Unauthenticated"
+      },
+      "mode": "development"
+    },
+    "telemetry": {
+      "open-telemetry": {
+        "enabled": false,
+        "endpoint": "@env('OTEL_EXPORTER_OTLP_ENDPOINT')",
+        "headers": "@env('OTEL_EXPORTER_OTLP_HEADERS')",
+        "service-name": "@env('OTEL_SERVICE_NAME')"
+      }
+    },
+    "health": {
+      "enabled": true,
+      "roles": []
+    }
+  },
+  "autoentities": {},
+  "entities": {
+    "Property": {
+      "source": {
+        "object": "dbo.Property",
+        "type": "table"
+      },
+      "graphql": {
+        "enabled": false,
+        "type": {
+          "singular": "Property",
+          "plural": "Properties"
+        }
+      },
+      "rest": {
+        "enabled": true
+      },
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": [
+            {
+              "action": "read"
+            },
+            {
+              "action": "update"
+            }
+          ]
+        }
+      ]
+    },
+    "Security": {
+      "source": {
+        "object": "dbo.Security",
+        "type": "table"
+      },
+      "graphql": {
+        "enabled": false,
+        "type": {
+          "singular": "Security",
+          "plural": "Securities"
+        }
+      },
+      "rest": {
+        "enabled": true
+      },
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": [
+            {
+              "action": "read"
+            },
+            {
+              "action": "update"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -24,3 +24,12 @@ offline-conda-pkgs/
 # SQLite files anywhere else
 *.db
 *.db-journal
+
+# pfandwerk local run artifacts. A completed run's outputs (plan.json, plan.approved,
+# patches.jsonl, facts.json, report.md, trajectory/) are committed deliberately with
+# `git add -f` so the CI notary can audit them; scratch from incomplete runs is not.
+artifacts/
+
+# Agent-drafted rule proposals. The reviewed rules/gaps.yaml is the artifact worth keeping;
+# these are working files a person edits down before opening an MR.
+rules/drafts/*.yaml

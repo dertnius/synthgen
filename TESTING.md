@@ -66,6 +66,19 @@ invocation remains supported.) Discovery order:
 Tests marked `[SqliteFact]` **skip with an explanatory message** when no conda SQLite is
 found, so `dotnet test` stays green on machines without it.
 
+On Linux the distro already ships the library, so step 1 alone is enough and conda is not
+needed:
+
+```bash
+export SYNTHGEN_SQLITE_DLL=/usr/lib/x86_64-linux-gnu/libsqlite3.so.0
+dotnet test        # 53 passed, 0 skipped
+```
+
+`SqliteNative` loads it through `NativeLibrary.Load`, which accepts a `.so` as readily as a
+`.dll`. Note that steps 2 and 3 of the discovery order only probe `Library/bin/sqlite3.dll`,
+a Windows-only conda layout — on Linux the environment variable is currently the only path
+that resolves, so set it explicitly rather than relying on a conda env being found.
+
 ### MSSQL-query compatibility trick
 
 Rules files address tables as `[dbo].[Customers]`. SQLite has no schemas, so
