@@ -171,6 +171,13 @@ samples/               customers.sql + countries/customers rules
 Build & test: `dotnet build` / `dotnet test`. Pack as a tool: the CLI is a plain console
 app — `dotnet publish -c Release` and put `synthgen` on PATH.
 
+**Docs rule — one fact, one home.** Commands, options, and exit codes live here;
+operating a repair lives in [docs/runbook.md](docs/runbook.md); test strategy in
+[TESTING.md](TESTING.md); DAB in [dab/README.md](dab/README.md); the agent contract in
+[AGENTS.md](AGENTS.md); design history, frozen, in [docs/history/](docs/history/).
+Everything else links instead of restating. If a change forces the same edit in two
+docs, fix the split instead of making both edits.
+
 ## Known limits (deliberate for the first cut)
 
 - CHECK constraints are parsed and surfaced as comments in `init`, not enforced by the
