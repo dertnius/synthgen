@@ -1,6 +1,6 @@
 # [Sales].[Customer] — 300 customers. AccountNumber is a computed column (skipped
-# automatically). PersonID/StoreID stay synthetic ints because the Person/Store
-# tables are outside this subset.
+# automatically). PersonID is selected from the generated Person parent table; StoreID
+# remains synthetic because Store is outside this subset.
 
 table: Sales.Customer
 rows: 300
@@ -10,9 +10,8 @@ columns:
   CustomerID:
     strategy: skip            # IDENTITY
   PersonID:
-    strategy: int
-    min: 1
-    max: 20000
+    strategy: query
+    query: SELECT [PersonID] FROM [Person].[Person]
     nullRate: 0.4
   StoreID:
     strategy: int

@@ -18,6 +18,7 @@ public sealed class Planner
     private readonly LedgerRepository _ledger;
     private readonly List<GapRule> _rules;
     private readonly Faker _faker;
+    private readonly HashSet<string> _plannedIdentityValues = new(StringComparer.Ordinal);
 
     public Planner(DbContext db, LedgerRepository ledger, List<GapRule> rules, int? seed = null)
     {
@@ -27,6 +28,7 @@ public sealed class Planner
 
     public PlanDocument Plan(string runId, string rulesSha)
     {
+        _plannedIdentityValues.Clear();
         using var conn = _db.OpenTarget();
         var plans = new List<RulePlan>();
 
@@ -134,12 +136,26 @@ public sealed class Planner
         var existing = _ledger.Lookup(rule.Table, rowKey, rule.Column);
         if (existing is not null) return existing;
 
+        var candidateQuery = PatchGenerators.CandidateQuery(rule.Fix);
+        var candidates = candidateQuery is null
+            ? null
+            : conn.Query<long>(candidateQuery).Cast<object>().ToList();
+        if (candidateQuery is not null && candidates!.Count == 0)
+            throw new GeneratorException(
+                $"Rule '{rule.Id}': generator '{rule.Fix}' found no existing parent IDs.");
+
         for (var attempt = 0; attempt < 100; attempt++)
         {
-            var candidate = Canonical.Format(PatchGenerators.Random(rule.Fix, _faker));
+            var generated = candidates is null
+                ? PatchGenerators.Random(rule.Fix, _faker)
+                : PatchGenerators.Random(rule.Fix, _faker, candidates);
+            var candidate = Canonical.Format(generated);
             var inTable = conn.ExecuteScalar<int>(
                 $"SELECT COUNT(*) FROM {rule.Table} WHERE {rule.Column} = @v", new { v = candidate }) > 0;
-            if (inTable || _ledger.ValueTaken(rule.Table, rule.Column, candidate)) continue;
+            var planned = $"{rule.Table}\u001f{rule.Column}\u001f{candidate}";
+            if (inTable || _ledger.ValueTaken(rule.Table, rule.Column, candidate) ||
+                _plannedIdentityValues.Contains(planned)) continue;
+            _plannedIdentityValues.Add(planned);
             return candidate;
         }
         throw new GeneratorException(

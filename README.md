@@ -49,6 +49,7 @@ The sample schema has an FK chain: generate `samples/countries.rules.yaml` first
 | `generate` | Generate rows and bulk-load them; runs the rules file's evaluations afterwards unless `--no-evaluate`. `--dry-run` prints a sample; `--csv` writes a file instead of the DB. |
 | `evaluate` | Run only the evaluations from a rules file. |
 | `patch <verb>` | The pfandwerk subsystem: repair bad values in *existing* rows behind a human approval gate — `survey`, `plan`, `approve`, `apply`, `verify`, `report`, `notary`, `revert`, `generators`. See [docs/runbook.md](docs/runbook.md) and [PFANDWERK-PLAN.md](PFANDWERK-PLAN.md). |
+| `sample adventureworks-corrupt` | Seed deterministic corruption into a generated AdventureWorks database — the setup step of the pfandwerk demo (`samples/adventureworks/run-pfandwerk.ps1`). |
 
 Common options: `--ddl`, `--rules`, `--table` (when the script has several tables),
 `--connection` (falls back to `SYNTHGEN_CONNECTION`), `--rows`/`--seed` (override the rules
@@ -164,6 +165,7 @@ src/SynthGen.Core/     Ddl/ (ScriptDom parser)  Rules/ (YAML + inference + scaff
 src/SynthGen.Cli/      Spectre.Console.Cli: init, generate, evaluate + the patch branch
 tests/SynthGen.Tests/  one offline test project; local SQLite tests skip, CI requires them
 samples/               customers.sql + countries/customers rules
+                       adventureworks/ (8-table AdventureWorks-compatible integration sample)
 ```
 
 Build & test: `dotnet build` / `dotnet test`. Pack as a tool: the CLI is a plain console

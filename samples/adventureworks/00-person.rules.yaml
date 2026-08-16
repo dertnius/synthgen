@@ -1,0 +1,21 @@
+# [Person].[Person] — parent rows used by Sales.Customer.PersonID.
+
+table: Person.Person
+rows: 1000
+seed: 100
+
+columns:
+  PersonID:
+    strategy: skip            # IDENTITY
+  FirstName:
+    strategy: faker
+    method: name.firstName
+  LastName:
+    strategy: faker
+    method: name.lastName
+
+evaluations:
+  - name: row-count
+    query: SELECT COUNT(*) FROM [Person].[Person]
+    expect:
+      equals: 1000

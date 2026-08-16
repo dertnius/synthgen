@@ -12,6 +12,13 @@ checks:
     query: "SELECT COUNT(*) FROM Sales.Customer WHERE PersonID IS NULL"
     expected: 0
 
+  - name: AdventureWorks.CustomerPersonOrphans
+    query: >-
+      SELECT COUNT(*) FROM Sales.Customer c
+      LEFT JOIN Person.Person p ON p.PersonID = c.PersonID
+      WHERE c.PersonID IS NOT NULL AND p.PersonID IS NULL
+    expected: 0
+
   - name: AdventureWorks.ProductRowCountStable
     query: "SELECT COUNT(*) FROM Production.Product"
     expected: 200

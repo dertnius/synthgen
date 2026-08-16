@@ -174,7 +174,7 @@ The hash is recomputed on demand rather than stored; `plan.approved` records the
 > therefore compares against the **planned** row set, not the raw predicate count. A row
 > deliberately skipped is not a failure to close a gap; it is a gap nobody agreed to close.
 
-### GATE — `approve.ps1`
+### GATE — `synthgen patch approve`
 
 The one place a human decides. Tier 1 lists every new identity in full, because those are
 permanent. Tier 2 gives counts, the frozen values, and threshold state.

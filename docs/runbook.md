@@ -120,11 +120,13 @@ whole table in VERIFY layer 2).
 
 ## 3. Point it at a database
 
-Two connections. The ledger may be the same database or a separate config one.
+Two connections, but they must resolve to the **same database**: the ledger table lives in
+the target database, because APPLY commits the ledger row and the patch in one transaction
+and refuses to run when the two connections differ. Omit the ledger variable and it falls
+back to the target.
 
 ```bash
 export PFANDWERK_TARGET_CONNECTION="Server=.;Database=PropertyDev;Integrated Security=true;TrustServerCertificate=true"
-export PFANDWERK_LEDGER_CONNECTION="Server=.;Database=PfandwerkConfig;Integrated Security=true;TrustServerCertificate=true"
 ```
 
 Both must appear in `allowlist.json` or the run stops with exit 4 before touching anything.

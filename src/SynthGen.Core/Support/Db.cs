@@ -29,7 +29,7 @@ public sealed class DbContext
         {
             // Keep the offline provider able to exercise the multi-schema AdventureWorks
             // sample as well as the single-schema pfandwerk fixtures.
-            var schemas = new[] { "dbo", "Production", "Sales" };
+            var schemas = new[] { "dbo", "Person", "Production", "Sales" };
             _sqliteTarget = new SqliteConnectionFactory(targetConnection, schemas);
             _sqliteLedger = new SqliteConnectionFactory(ledgerConnection, schemas);
         }

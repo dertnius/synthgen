@@ -77,7 +77,7 @@ pwsh samples/adventureworks/run-local.ps1
 
 | # | Touchpoint | When | Public endpoint | Enterprise alternative |
 |---|---|---|---|---|
-| 1 | .NET SDK 8.x | once per machine | dotnet.microsoft.com | corporate software catalog (SCCM/Intune) |
+| 1 | .NET SDK 10.x | once per machine | dotnet.microsoft.com | corporate software catalog (SCCM/Intune) |
 | 2 | NuGet restore (123 packages, all managed code) | first build | api.nuget.org | internal mirror **or** offline folder feed |
 | 3 | conda `sqlite` package | once | conda-forge via anaconda.org | internal conda remote **or** offline package cache |
 | — | Generating data, running tests, running the CLI | every run | **none** | — |

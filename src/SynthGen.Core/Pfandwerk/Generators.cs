@@ -34,7 +34,15 @@ public static class PatchGenerators
             ["adventureworks.productColor"] = f => f.PickRandom(
                 new[] { "Black", "Blue", "Grey", "Multi", "Red", "Silver", "White", "Yellow" }),
             ["adventureworks.orderStatus"] = f => f.Random.Int(1, 5),
-            ["adventureworks.personId"] = f => f.Random.Int(1, 20000),
+            ["adventureworks.personId"] = _ =>
+                throw new GeneratorException(
+                    "Generator 'adventureworks.personId' requires existing parent IDs."),
+        };
+
+    private static readonly Dictionary<string, string> CandidateQueries =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["adventureworks.personId"] = "SELECT [PersonID] FROM [Person].[Person]",
         };
 
     private static readonly Dictionary<string, Func<IReadOnlyDictionary<string, object?>, object>> DerivedMap =
@@ -67,6 +75,20 @@ public static class PatchGenerators
         try { return FakerMap.Resolve(key)(faker); }
         catch (GenerationException) { throw Unknown(key); }
     }
+
+    public static object Random(string key, Faker faker, IReadOnlyList<object> candidates)
+    {
+        if (string.Equals(key, "adventureworks.personId", StringComparison.OrdinalIgnoreCase))
+        {
+            if (candidates.Count == 0)
+                throw new GeneratorException("Generator 'adventureworks.personId' found no existing parent IDs.");
+            return faker.PickRandom(candidates.ToArray());
+        }
+        return Random(key, faker);
+    }
+
+    public static string? CandidateQuery(string key) =>
+        CandidateQueries.GetValueOrDefault(key);
 
     public static object Derived(string key, IReadOnlyDictionary<string, object?> inputs)
     {

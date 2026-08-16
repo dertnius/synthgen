@@ -16,6 +16,7 @@ public sealed class AdventureWorksPfandwerkIntegrationTests : IDisposable
 {
     private static readonly string[] GenerationRules =
     {
+        "00-person.rules.yaml",
         "01-productcategory.rules.yaml",
         "02-productsubcategory.rules.yaml",
         "03-product.rules.yaml",
@@ -150,6 +151,11 @@ public sealed class AdventureWorksPfandwerkIntegrationTests : IDisposable
             "SELECT COUNT(*) FROM [Sales].[SalesOrderHeader] WHERE [Status] < 1 OR [Status] > 5"));
         Assert.Equal(0, conn.ExecuteScalar<int>(
             "SELECT COUNT(*) FROM [Sales].[Customer] WHERE [PersonID] IS NULL"));
+        Assert.Equal(0, conn.ExecuteScalar<int>("""
+            SELECT COUNT(*) FROM [Sales].[Customer] c
+            LEFT JOIN [Person].[Person] p ON p.[PersonID] = c.[PersonID]
+            WHERE c.[PersonID] IS NOT NULL AND p.[PersonID] IS NULL
+            """));
     }
 
     private List<Check> ConsumerChecks() =>
@@ -160,6 +166,11 @@ public sealed class AdventureWorksPfandwerkIntegrationTests : IDisposable
             "SELECT COUNT(*) FROM Sales.SalesOrderHeader WHERE Status < 1 OR Status > 5", 0),
         new("AdventureWorks.CustomerPersonPresent",
             "SELECT COUNT(*) FROM Sales.Customer WHERE PersonID IS NULL", 0),
+        new("AdventureWorks.CustomerPersonOrphans", """
+            SELECT COUNT(*) FROM Sales.Customer c
+            LEFT JOIN Person.Person p ON p.PersonID = c.PersonID
+            WHERE c.PersonID IS NOT NULL AND p.PersonID IS NULL
+            """, 0),
         new("AdventureWorks.ProductRowCountStable",
             "SELECT COUNT(*) FROM Production.Product", 200),
         new("AdventureWorks.CustomerRowCountStable",

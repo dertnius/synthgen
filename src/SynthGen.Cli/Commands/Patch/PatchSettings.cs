@@ -86,6 +86,14 @@ public class PatchSettings : CommandSettings
     public string Path(string name) => System.IO.Path.Combine(Artifacts, name);
     public DbContext Db() => new(ParsedProvider, TargetResolved, LedgerResolved);
 
+    public void EnsureApplyUsesSameDatabase()
+    {
+        if (!string.Equals(TargetResolved, LedgerResolved, StringComparison.OrdinalIgnoreCase))
+            throw new PatchAbortedException(
+                "patch apply requires the target and ledger to use the same database; " +
+                "separate databases cannot provide an atomic ledger reservation.");
+    }
+
     /// <summary>
     /// Both apply and revert build the sink here, so a run reverts through the same path
     /// that applied it.

@@ -103,8 +103,9 @@ back to SQL: quietly taking the path your policy forbids would be worse than sto
 ## The constraint that keeps this optional
 
 DAB cannot enrol the ledger write and the target write in one transaction — they are a SQL
-`INSERT` and an HTTP request against separate databases. `SqlPatchSink` can, which is why
-it is the default (D12).
+`INSERT` and an HTTP request to another process, which cannot share a transaction even
+though target and ledger are the same database. `SqlPatchSink` can, which is why it is the
+default (D12).
 
 On this path a ledger row therefore means **reserved, not applied**. Applied-state derives
 from `patches.jsonl`, and `Planner` treats a ledger hit as "reuse this value" without

@@ -1,8 +1,15 @@
 -- AdventureWorks-compatible schema subset (structure follows Microsoft's public
--- AdventureWorks sample database). Seven tables across two schemas, exercising:
+-- AdventureWorks sample database). Eight tables across three schemas, exercising:
 -- cross-schema FKs, composite PK with IDENTITY, computed columns, NEWID()/GETDATE()
 -- defaults, ROWGUIDCOL, money/nchar/tinyint types, reserved-word column names,
 -- and CHECK constraints. Dependency order: top to bottom.
+
+CREATE TABLE [Person].[Person](
+    [PersonID] [int] IDENTITY(1,1) NOT NULL,
+    [FirstName] [nvarchar](50) NOT NULL,
+    [LastName] [nvarchar](50) NOT NULL,
+    CONSTRAINT [PK_Person_PersonID] PRIMARY KEY CLUSTERED ([PersonID])
+);
 
 CREATE TABLE [Production].[ProductCategory](
     [ProductCategoryID] [int] IDENTITY(1,1) NOT NULL,

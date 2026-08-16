@@ -47,6 +47,10 @@ public sealed class SqlPatchSink : IPatchSink
         var isIdentity = i.WriteLedger && i.Rule.ParsedKind == RuleKind.Identity;
         var sameDatabase = string.Equals(_db.TargetConnection, _db.LedgerConnection,
                                          StringComparison.OrdinalIgnoreCase);
+        if (isIdentity && !sameDatabase)
+            throw new PatchAbortedException(
+                "patch apply requires the target and ledger to use the same database; " +
+                "separate databases cannot provide an atomic ledger reservation.");
 
         using var target = _db.OpenTarget();
         using var tx = target.BeginTransaction();
@@ -63,14 +67,6 @@ public sealed class SqlPatchSink : IPatchSink
             {
                 WriteLedgerRow(target, tx, i);
             }
-            else if (isIdentity)
-            {
-                // Separate ledger database: one local transaction cannot span both, so the
-                // ledger row means "reserved" and applied-state comes from patches.jsonl.
-                using var ledger = _db.OpenLedger();
-                WriteLedgerRow(ledger, null, i);
-            }
-
             var updated = target.Execute(
                 GapQuery.Update(i.Rule, "@key", "@value"),
                 new { key = Coerce(i.RowKey), value = i.Value is null ? null : Coerce(i.Value) }, tx);
@@ -143,29 +139,46 @@ public sealed class Patcher
         if (plan.Rules.Any(r => r.Status == "BLOCKED"))
             throw new PatchAbortedException("Plan contains a BLOCKED rule; the gate should have refused it.");
 
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(patchesPath))!);
-        using var log = new StreamWriter(patchesPath, append: false);
+        var artifactDirectory = Path.GetDirectoryName(Path.GetFullPath(patchesPath))!;
+        Directory.CreateDirectory(artifactDirectory);
+        var tempPath = Path.Combine(artifactDirectory,
+            $".{Path.GetFileName(patchesPath)}.{Guid.NewGuid():N}.tmp");
         var applied = 0;
 
-        foreach (var rulePlan in plan.Rules)
+        try
         {
-            var rule = _rules.First(r => r.Id == rulePlan.Id);
-            foreach (var patch in rulePlan.Patches)
+            using (var log = new StreamWriter(tempPath, append: false))
             {
-                var old = _sink.Apply(new PatchInstruction(rule, patch.Key[rule.Key], patch.Value, WriteLedger: true));
-                applied++;
-                log.WriteLine(JsonSerializer.Serialize(new
+                foreach (var rulePlan in plan.Rules)
                 {
-                    ts = DateTime.UtcNow.ToString("O"),
-                    rule = rule.Id,
-                    id = patch.Key,
-                    col = rule.Column,
-                    old,
-                    @new = patch.Value,
-                    reason = rule.Reason,
-                }, Compact));
+                    var rule = _rules.First(r => r.Id == rulePlan.Id);
+                    foreach (var patch in rulePlan.Patches)
+                    {
+                        var old = _sink.Apply(new PatchInstruction(
+                            rule, patch.Key[rule.Key], patch.Value, WriteLedger: true));
+                        applied++;
+                        log.WriteLine(JsonSerializer.Serialize(new
+                        {
+                            ts = DateTime.UtcNow.ToString("O"),
+                            rule = rule.Id,
+                            id = patch.Key,
+                            col = rule.Column,
+                            old,
+                            @new = patch.Value,
+                            reason = rule.Reason,
+                        }, Compact));
+                    }
+                }
+                log.Flush();
             }
+
+            File.Move(tempPath, patchesPath, overwrite: true);
+            return applied;
         }
-        return applied;
+        finally
+        {
+            if (File.Exists(tempPath))
+                File.Delete(tempPath);
+        }
     }
 }

@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
 Runs the full AdventureWorks-compatible sample locally against SQLite:
-create schema -> load 7 tables in dependency order -> per-table evaluations.
+create schema -> load 8 tables in dependency order -> per-table evaluations.
 
 Requires a native SQLite library; Windows users can provision it with
 scripts/setup-sqlite.ps1.
@@ -16,6 +16,7 @@ $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 $ddl = Join-Path $PSScriptRoot 'adventureworks.sql'
 
 $rules = @(
+    '00-person.rules.yaml',
     '01-productcategory.rules.yaml',
     '02-productsubcategory.rules.yaml',
     '03-product.rules.yaml',

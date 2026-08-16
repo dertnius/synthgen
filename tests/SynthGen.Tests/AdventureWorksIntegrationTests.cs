@@ -10,15 +10,16 @@ using SynthGen.Tests.Support;
 namespace SynthGen.Tests;
 
 /// <summary>
-/// Real-world integration test: a 7-table AdventureWorks-compatible subset (Microsoft's
+/// Real-world integration test: an 8-table AdventureWorks-compatible subset (Microsoft's
 /// public SQL Server sample schema) generated and validated end-to-end on SQLite.
-/// Exercises multi-schema attach (Production + Sales), cross-schema FK chains, a
+/// Exercises multi-schema attach (Person + Production + Sales), cross-schema FK chains, a
 /// composite PK with IDENTITY, computed-column skipping, and CHECK-mirroring rules.
 /// </summary>
 public sealed class AdventureWorksIntegrationTests : IDisposable
 {
     private static readonly string[] RulesInOrder =
     {
+        "00-person.rules.yaml",
         "01-productcategory.rules.yaml",
         "02-productsubcategory.rules.yaml",
         "03-product.rules.yaml",
@@ -55,9 +56,9 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
     [Fact]
     public void Ddl_parses_with_expected_shape()
     {
-        Assert.Equal(7, _tables.Count);
+        Assert.Equal(8, _tables.Count);
         Assert.Equal(
-            new[] { "Production", "Sales" },
+            new[] { "Person", "Production", "Sales" },
             _tables.Select(t => t.Schema).Distinct().OrderBy(s => s));
 
         var detail = _tables.Single(t => t.Name == "SalesOrderDetail");
@@ -109,7 +110,7 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
                 r.Passed, $"{rulesFile} / {r.Name}: value={r.Value} expected={r.Expected} ({r.Error})"));
         }
 
-        Assert.Equal(4 + 12 + 200 + 10 + 300 + 500 + 2000, totalRows);
+        Assert.Equal(1000 + 4 + 12 + 200 + 10 + 300 + 500 + 2000, totalRows);
 
         // Cross-table sanity beyond the per-table evaluations: order lines join back
         // through header AND product across schemas in one query.
@@ -122,6 +123,13 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
             WHERE h.[SalesOrderID] IS NULL OR p.[ProductID] IS NULL
             """);
         Assert.Equal(0, orphanJoins);
+        var orphanPeople = check.ExecuteScalar<long>("""
+            SELECT COUNT(*)
+            FROM [Sales].[Customer] c
+            LEFT JOIN [Person].[Person] p ON p.[PersonID] = c.[PersonID]
+            WHERE c.[PersonID] IS NOT NULL AND p.[PersonID] IS NULL
+            """);
+        Assert.Equal(0, orphanPeople);
     }
 
     [SqliteFact]

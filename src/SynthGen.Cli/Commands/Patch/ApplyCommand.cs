@@ -9,6 +9,7 @@ public sealed class ApplyCommand : Command<PatchSettings>
 {
     protected override int Execute(CommandContext context, PatchSettings o, CancellationToken cancellationToken)
     {
+        o.EnsureApplyUsesSameDatabase();
         var rules = o.LoadRules();
         var applied = new Patcher(o.PatchSink(rules), rules)
             .Apply(o.Path("plan.json"), o.Path("plan.approved"), o.Path("patches.jsonl"));
