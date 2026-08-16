@@ -1,4 +1,2 @@
 global using SynthGen.Core.Rules;
 global using SynthGen.Core.Support;
-global using SynthGen.Tests.Support;
-global using Xunit;

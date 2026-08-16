@@ -1,31 +1,10 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using SynthGen.Core.Eval;
 
 namespace SynthGen.Cli;
 
-/// <summary>Exit codes, stable for scripting and agentic workflows.</summary>
-public static class ExitCodes
-{
-    public const int Ok = 0;
-    /// <summary>At least one evaluation failed.</summary>
-    public const int EvaluationFailed = 1;
-    /// <summary>Bad input: DDL, rules file, or CLI options.</summary>
-    public const int ConfigError = 2;
-    /// <summary>Database or unexpected runtime error.</summary>
-    public const int RuntimeError = 3;
-}
-
 public static class CliSupport
 {
     public const string ConnectionEnvVar = "SYNTHGEN_CONNECTION";
-
-    public static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
 
     /// <summary>--connection option first, SYNTHGEN_CONNECTION env var second.</summary>
     public static string? ResolveConnection(string? option) =>

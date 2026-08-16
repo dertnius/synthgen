@@ -298,7 +298,7 @@ public sealed class Reverter
                 continue;
 
             var rule = _rules.FirstOrDefault(r => r.Id == e.Rule)
-                       ?? throw new GapRulesLoadException(
+                       ?? throw new RulesLoadException(
                            $"patches.jsonl references rule '{e.Rule}', which is not in the rules file.");
 
             // WriteLedger: false — restoring a column must never append to an append-only

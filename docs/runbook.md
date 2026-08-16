@@ -10,7 +10,7 @@ VS Code's preview.
 ## The short version
 
 ```bash
-pfandwerk generators                 # 1. does a generator already exist for this column?
+synthgen patch generators                 # 1. does a generator already exist for this column?
 $EDITOR rules/gaps.yaml              # 2. write the rules
 ./run.ps1 -Only TEN-001,TEN-002      # 3. run — you approve at the gate
 ```
@@ -28,7 +28,7 @@ guarantee evaporates.
 New tables you have not written rules for yet? Profile them before writing anything:
 
 ```bash
-pfandwerk survey --tables dbo.House,dbo.Apartment   # omit --tables to survey everything
+synthgen patch survey --tables dbo.House,dbo.Apartment   # omit --tables to survey everything
 ```
 
 ```
@@ -58,7 +58,7 @@ schema validation, the threshold and the gate before anything changes.
 ## 1. Check whether a generator already exists
 
 ```
-$ pfandwerk generators
+$ synthgen patch generators
 
 Random generators — for kind: ephemeral and identity
   address.city
@@ -221,8 +221,8 @@ run.
 ### If you need to undo it
 
 ```bash
-pfandwerk revert                     # everything, newest first
-pfandwerk revert --only TEN-001      # one rule
+synthgen patch revert                     # everything, newest first
+synthgen patch revert --only TEN-001      # one rule
 ```
 
 Local only, never CI. Ledger rows are **not** deleted, so a later run reuses the same
@@ -230,10 +230,10 @@ identities rather than issuing new ones.
 
 ## 6. When you need a new generator
 
-Only when nothing in `pfandwerk generators` fits — a domain value with its own rules, or
+Only when nothing in `synthgen patch generators` fits — a domain value with its own rules, or
 anything derived from another column.
 
-1. Add the entry to `src/Pfandwerk/Generators.cs`:
+1. Add the entry to `src/SynthGen.Core/Pfandwerk/Generators.cs`:
 
 ```csharp
 // random: ephemeral and identity
@@ -261,7 +261,7 @@ which is the property that makes the approval hash mean anything.
 | `is not in the targets allowlist` (exit 4) | Add Server + Database + auth to `allowlist.json`. Never paste the whole connection string |
 | `does not match the live schema` (exit 2) | A rule names a column the table does not have. Caught at SCAN rather than three phases later |
 | `'gap' references dbo.X, but the rule declares only dbo.Y` | A predicate reached outside its table. Split it into two rules |
-| `Unknown fix key` | Run `pfandwerk generators`; the message lists every valid key |
+| `Unknown fix key` | Run `synthgen patch generators`; the message lists every valid key |
 | `plan.json hash mismatch` | The plan changed after approval. Re-run the gate — this is the check working |
 | `the ledger records X … but this run would write Y` (exit 5) | A frozen identity disagrees with what this run planned. Ledger rows are never updated, so a person has to decide |
 | `N rule(s) BLOCKED past threshold` | More rows matched than the rule allows. Either the data got worse or the predicate is too broad — look before raising the threshold |

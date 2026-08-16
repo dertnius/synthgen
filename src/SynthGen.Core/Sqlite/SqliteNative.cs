@@ -4,9 +4,9 @@ using SQLitePCL;
 namespace SynthGen.Sqlite;
 
 /// <summary>
-/// Wires Microsoft.Data.Sqlite to a conda/micromamba-provisioned native sqlite3 library.
-/// No native binaries ship via NuGet (enterprise networks block binary downloads);
-/// the DLL must come from a conda-forge install — see scripts/setup-sqlite.ps1.
+/// Wires Microsoft.Data.Sqlite to an explicitly provisioned native sqlite3 library.
+/// No native binaries ship via NuGet. Windows enterprise setups use conda/micromamba;
+/// Linux CI supplies the distro library through SYNTHGEN_SQLITE_DLL.
 /// </summary>
 public static class SqliteNative
 {
@@ -21,7 +21,7 @@ public static class SqliteNative
     public static string? LoadedFrom => _loadedFrom;
 
     /// <summary>
-    /// Locates and loads the conda-provided sqlite3 library. Safe to call repeatedly.
+    /// Locates and loads the explicitly provisioned sqlite3 library. Safe to call repeatedly.
     /// Returns false (with a reason) when no conda/micromamba sqlite is available.
     /// </summary>
     public static bool TryInitialize(out string? error)
@@ -35,9 +35,9 @@ public static class SqliteNative
             if (path is null)
             {
                 _failure =
-                    $"No conda/micromamba-provided sqlite3 library found. Set {DllEnvVar} to the " +
-                    "full path of sqlite3.dll, or run scripts/setup-sqlite.ps1 (conda/micromamba " +
-                    "are the only supported install methods on this network).";
+                    $"No native sqlite3 library found. Set {DllEnvVar} to the full path of the " +
+                    "native SQLite library, or run scripts/setup-sqlite.ps1 for the Windows " +
+                    "conda/micromamba setup.";
                 error = _failure;
                 return false;
             }
@@ -69,7 +69,8 @@ public static class SqliteNative
 
     /// <summary>
     /// Probe order: explicit env var, the dedicated conda env from setup-sqlite.ps1,
-    /// then any conda/micromamba env (base included) that carries sqlite3.dll.
+    /// then any conda/micromamba env (base included) that carries sqlite3.dll. Linux
+    /// callers should set SYNTHGEN_SQLITE_DLL because distro layouts are not probed.
     /// </summary>
     private static string? Locate()
     {

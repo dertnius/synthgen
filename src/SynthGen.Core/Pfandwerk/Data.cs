@@ -2,40 +2,9 @@ using System.Data;
 using System.Globalization;
 using Dapper;
 using Microsoft.Data.SqlClient;
-using SynthGen.Sqlite;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace Pfandwerk;
-
-public static class Json
-{
-    public static readonly JsonSerializerOptions Options = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
-
-    public static void Write<T>(string path, T value)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        File.WriteAllText(path, JsonSerializer.Serialize(value, Options) + "\n");
-    }
-
-    public static T Read<T>(string path) =>
-        JsonSerializer.Deserialize<T>(File.ReadAllText(path), Options)
-        ?? throw new InvalidOperationException($"{path} deserialized to null.");
-
-    /// <summary>SHA-256 of the file's bytes, lowercase hex. What plan.approved binds.</summary>
-    public static string Sha256File(string path) =>
-        Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
-
-    public static string Sha256Text(string text) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text))).ToLowerInvariant();
-}
 
 /// <summary>
 /// Canonical string form for ledger storage and comparison. Without a pinned form,
@@ -112,21 +81,6 @@ public sealed record AuditViolation(string Kind, string Detail);
 
 public sealed record AuditDocument(string Verdict, List<AuditViolation> Violations);
 
-public enum Provider { SqlServer, Sqlite }
-
-/// <summary>Exit codes, stable for scripting. Extends SynthGen's convention.</summary>
-public static class ExitCodes
-{
-    public const int Ok = 0;
-    public const int ConfigError = 2;
-    public const int RuntimeError = 3;
-    public const int AllowlistMismatch = 4;
-    public const int LedgerConflict = 5;
-    public const int GapsRemain = 10;
-    public const int InvariantRegression = 20;
-    public const int ConsumerRegression = 30;
-}
-
 /// <summary>
 /// Reads the .sql files embedded from db/pfandwerk/. They are the source of truth for the
 /// ledger schema — one copy a DBA can run by hand, and the same text the tool applies.
@@ -138,44 +92,6 @@ public static class Sql
         using var stream = typeof(Sql).Assembly.GetManifestResourceStream(name)
             ?? throw new InvalidOperationException($"embedded resource '{name}' is missing");
         return new StreamReader(stream).ReadToEnd();
-    }
-}
-
-/// <summary>
-/// Opens connections to the target and the ledger. Provider-agnostic on purpose: the
-/// fixture end-to-end runs on SQLite offline, the same pipeline runs on SQL Server.
-/// </summary>
-public sealed class DbContext
-{
-    private readonly SqliteConnectionFactory? _sqliteTarget;
-    private readonly SqliteConnectionFactory? _sqliteLedger;
-
-    public Provider Provider { get; }
-    public string TargetConnection { get; }
-    public string LedgerConnection { get; }
-
-    public DbContext(Provider provider, string targetConnection, string ledgerConnection)
-    {
-        Provider = provider;
-        TargetConnection = targetConnection;
-        LedgerConnection = ledgerConnection;
-
-        if (provider == Provider.Sqlite)
-        {
-            _sqliteTarget = new SqliteConnectionFactory(targetConnection, new[] { "dbo" });
-            _sqliteLedger = new SqliteConnectionFactory(ledgerConnection, new[] { "dbo" });
-        }
-    }
-
-    public IDbConnection OpenTarget() => Open(TargetConnection, _sqliteTarget);
-    public IDbConnection OpenLedger() => Open(LedgerConnection, _sqliteLedger);
-
-    private IDbConnection Open(string connection, SqliteConnectionFactory? sqlite)
-    {
-        if (Provider == Provider.Sqlite) return sqlite!.Open();
-        var c = new SqlConnection(connection);
-        c.Open();
-        return c;
     }
 }
 

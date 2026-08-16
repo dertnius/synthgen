@@ -33,7 +33,7 @@ export PFANDWERK_TARGET_CONNECTION="Server=…;Database=PropertyDev;Integrated S
 ```
 
 The same value must satisfy `allowlist.json` (hard rule 5) — DAB does not perform that
-check, `pfandwerk plan`'s guard step does, and it runs first.
+check, `synthgen patch plan`'s guard step does, and it runs first.
 
 ## Running it
 
@@ -43,7 +43,7 @@ dab start                                      # serves REST on http://localhost
 
 # then, from the repo root:
 ./run.ps1 -Sink dab                            # or -DabUrl http://host:port
-pfandwerk apply --sink dab --dab-url http://localhost:5000
+synthgen patch apply --sink dab --dab-url http://localhost:5000
 ```
 
 `--sink sql` is the default and is unaffected by any of this.

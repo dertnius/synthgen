@@ -1,13 +1,6 @@
 using Microsoft.SqlServer.TransactSql.ScriptDom;
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
 
 namespace Pfandwerk;
-
-public sealed class GapRulesLoadException : Exception
-{
-    public GapRulesLoadException(string message, Exception? inner = null) : base(message, inner) { }
-}
 
 public enum RuleKind { Ephemeral, Identity, Derived }
 
@@ -52,14 +45,14 @@ public sealed class GapRule
         "ephemeral" => RuleKind.Ephemeral,
         "identity" => RuleKind.Identity,
         "derived" => RuleKind.Derived,
-        _ => throw new GapRulesLoadException($"Rule '{Id}': unknown kind '{Kind}'."),
+        _ => throw new RulesLoadException($"Rule '{Id}': unknown kind '{Kind}'."),
     };
 
     public MissingInputPolicy ParsedMissingInputPolicy => (OnMissingInput ?? "block") switch
     {
         "block" => MissingInputPolicy.Block,
         "floor" => MissingInputPolicy.Floor,
-        var other => throw new GapRulesLoadException(
+        var other => throw new RulesLoadException(
             $"Rule '{Id}': onMissingInput must be 'block' or 'floor', not '{other}'."),
     };
 }
@@ -68,26 +61,23 @@ public static class GapRulesLoader
 {
     public static GapRulesFile LoadFile(string path)
     {
-        if (!File.Exists(path)) throw new GapRulesLoadException($"Rules file not found: {path}");
+        if (!File.Exists(path)) throw new RulesLoadException($"Rules file not found: {path}");
         return Load(File.ReadAllText(path));
     }
 
     public static GapRulesFile Load(string yaml)
     {
-        var deserializer = new DeserializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .IgnoreUnmatchedProperties()
-            .Build();
+        var deserializer = Yaml.Deserializer();
 
         GapRulesFile file;
         try
         {
             file = deserializer.Deserialize<GapRulesFile>(yaml)
-                   ?? throw new GapRulesLoadException("Rules file is empty.");
+                   ?? throw new RulesLoadException("Rules file is empty.");
         }
         catch (YamlDotNet.Core.YamlException ex)
         {
-            throw new GapRulesLoadException($"Rules YAML is invalid at {ex.Start}: {ex.Message}", ex);
+            throw new RulesLoadException($"Rules YAML is invalid at {ex.Start}: {ex.Message}", ex);
         }
 
         Validate(file);
@@ -96,35 +86,35 @@ public static class GapRulesLoader
 
     private static void Validate(GapRulesFile file)
     {
-        if (file.Rules.Count == 0) throw new GapRulesLoadException("Rules file declares no rules.");
+        if (file.Rules.Count == 0) throw new RulesLoadException("Rules file declares no rules.");
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var r in file.Rules)
         {
-            if (string.IsNullOrWhiteSpace(r.Id)) throw new GapRulesLoadException("Every rule needs an 'id'.");
-            if (!seen.Add(r.Id)) throw new GapRulesLoadException($"Duplicate rule id '{r.Id}'.");
+            if (string.IsNullOrWhiteSpace(r.Id)) throw new RulesLoadException("Every rule needs an 'id'.");
+            if (!seen.Add(r.Id)) throw new RulesLoadException($"Duplicate rule id '{r.Id}'.");
 
             foreach (var (name, value) in new[]
                      { ("table", r.Table), ("key", r.Key), ("column", r.Column),
                        ("kind", r.Kind), ("gap", r.Gap), ("fix", r.Fix), ("reason", r.Reason) })
             {
                 if (string.IsNullOrWhiteSpace(value))
-                    throw new GapRulesLoadException($"Rule '{r.Id}': '{name}' is required.");
+                    throw new RulesLoadException($"Rule '{r.Id}': '{name}' is required.");
             }
 
             _ = r.ParsedKind;
             if (r.Threshold <= 0)
-                throw new GapRulesLoadException($"Rule '{r.Id}': 'threshold' must be positive.");
+                throw new RulesLoadException($"Rule '{r.Id}': 'threshold' must be positive.");
 
             if (r.ParsedKind == RuleKind.Derived)
             {
                 if (r.Inputs is null || r.Inputs.Count == 0)
-                    throw new GapRulesLoadException($"Rule '{r.Id}': derived rules require 'inputs'.");
+                    throw new RulesLoadException($"Rule '{r.Id}': derived rules require 'inputs'.");
                 _ = r.ParsedMissingInputPolicy;
             }
             else if (r.Inputs is not null || r.OnMissingInput is not null)
             {
-                throw new GapRulesLoadException(
+                throw new RulesLoadException(
                     $"Rule '{r.Id}': 'inputs' and 'onMissingInput' apply only to derived rules.");
             }
 
@@ -133,15 +123,15 @@ public static class GapRulesLoader
             // precisely the day nobody wants to debug the rules file.
             var derived = PatchGenerators.IsDerived(r.Fix);
             if (r.ParsedKind == RuleKind.Derived && !derived)
-                throw new GapRulesLoadException(
+                throw new RulesLoadException(
                     $"Rule '{r.Id}': '{r.Fix}' is not a derived generator. " +
                     $"Available: {string.Join(", ", PatchGenerators.DerivedKeys)}");
             if (r.ParsedKind != RuleKind.Derived && derived)
-                throw new GapRulesLoadException(
+                throw new RulesLoadException(
                     $"Rule '{r.Id}': '{r.Fix}' is a derived generator and needs kind: derived.");
             if (!derived && !PatchGenerators.RandomKeys.Contains(r.Fix, StringComparer.OrdinalIgnoreCase))
-                throw new GapRulesLoadException(
-                    $"Rule '{r.Id}': unknown fix key '{r.Fix}'. Run `pfandwerk generators` for the list.");
+                throw new RulesLoadException(
+                    $"Rule '{r.Id}': unknown fix key '{r.Fix}'. Run `synthgen patch generators` for the list.");
 
             GapPredicateValidator.Validate(r);
         }
@@ -166,7 +156,7 @@ public static class GapPredicateValidator
     private static void Check(GapRule rule, string predicate, string field)
     {
         if (predicate.Contains(';'))
-            throw new GapRulesLoadException(
+            throw new RulesLoadException(
                 $"Rule '{rule.Id}': '{field}' contains a statement terminator.");
 
         // Wrap the predicate in a throwaway SELECT so ScriptDom parses it as a boolean
@@ -176,14 +166,14 @@ public static class GapPredicateValidator
         var fragment = parser.Parse(new StringReader(probe), out var errors);
 
         if (errors.Count > 0)
-            throw new GapRulesLoadException(
+            throw new RulesLoadException(
                 $"Rule '{rule.Id}': '{field}' is not a valid boolean expression — " +
                 string.Join("; ", errors.Select(e => e.Message)));
 
         var script = (TSqlScript)fragment;
         var statements = script.Batches.SelectMany(b => b.Statements).ToList();
         if (statements.Count != 1)
-            throw new GapRulesLoadException(
+            throw new RulesLoadException(
                 $"Rule '{rule.Id}': '{field}' expands to {statements.Count} statements; exactly one is allowed.");
 
         var visitor = new TableCollector();
@@ -194,7 +184,7 @@ public static class GapPredicateValidator
                                     .Distinct(StringComparer.OrdinalIgnoreCase)
                                     .ToList();
         if (foreign.Count > 0)
-            throw new GapRulesLoadException(
+            throw new RulesLoadException(
                 $"Rule '{rule.Id}': '{field}' references {string.Join(", ", foreign)}, " +
                 $"but the rule declares only {rule.Table}. Only tables listed in the rule may be touched.");
     }

@@ -89,7 +89,7 @@ run that reports success while leaving gaps behind.
 
 Nothing about this step involves a model. An agent could not detect a gap if it wanted to:
 the CLI permission flags deny it database access, and the only tool it is permitted to run is
-`pfandwerk <verb>`.
+`synthgen patch <verb>`.
 
 ## 3. Who produces the values
 
@@ -147,7 +147,7 @@ neither can reach a database.
 
 ### Agent 1 — plan narrator
 
-Called by `run.ps1` after `pfandwerk plan` has already produced `plan.json`:
+Called by `run.ps1` after `synthgen patch plan` has already produced `plan.json`:
 
 ```powershell
 copilot -p prompts/plan.md --model $env:PFANDWERK_MODEL_MAKER
@@ -159,11 +159,11 @@ computing them.
 
 ### Agent 2 — report maker
 
-Called by `run.ps1` before `pfandwerk report` extracts the facts and audits the result:
+Called by `run.ps1` before `synthgen patch report` extracts the facts and audits the result:
 
 ```powershell
 copilot -p prompts/report-maker.md --model $env:PFANDWERK_MODEL_MAKER
-pfandwerk report                  # deterministic C#, not a second model
+synthgen patch report                  # deterministic C#, not a second model
 ```
 
 Reads `artifacts/facts.json`; writes `artifacts/report.md`. `ReportAuditor` then checks
@@ -186,7 +186,7 @@ Prompt instructions are not a security boundary — a model that ignores them is
 misbehaving in a way instructions can prevent. Two mechanisms do the actual work:
 
 1. **`hooks/pre-tool-use.ps1`** — deny-by-default. The only permitted shell invocation is
-   `pfandwerk <verb>`, matched by parsing the command and normalising path separators
+   `synthgen patch <verb>`, matched by parsing the command and normalising path separators
    rather than regexing the raw string. Writes outside `artifacts/` are denied.
 2. **`hooks/post-tool-use.ps1`** — appends every tool call to
    `artifacts/trajectory/<phase>.jsonl`, and the CI notary fails the build if those logs
@@ -209,7 +209,7 @@ would fail closed rather than silently degrade.
 
 ```
 run.ps1
-├─ pfandwerk plan     ConnectionAllowlist                          → exit 4 on mismatch
+├─ synthgen patch plan     ConnectionAllowlist                          → exit 4 on mismatch
 │                     ScriptDom → GapQuery → Dapper/SqlClient
 │                     Bogus/FakerMap  (ephemeral, identity)
 │                     pure functions  (derived)
@@ -217,18 +217,18 @@ run.ps1
 │                     invariant + consumer checks                   → baseline.json
 ├─ copilot -p prompts/plan.md                                       → plan-summary.md
 ├─ approve.ps1        human reads tiers 1 and 2                     → plan.approved
-├─ pfandwerk apply    re-verify sha256, then IPatchSink per row     → patches.jsonl
+├─ synthgen patch apply    re-verify sha256, then IPatchSink per row     → patches.jsonl
 │                     SqlPatchSink: ledger + target in one tx
-├─ pfandwerk verify   GapQuery re-scan          (layer 1)           → exit 10
+├─ synthgen patch verify   GapQuery re-scan          (layer 1)           → exit 10
 │                     xUnit invariants          (layer 2)           → exit 20
 │                     xUnit consumer suite      (layer 3)           → exit 30
 │                     diffed against baseline.json                  → verify.json
-├─ pfandwerk report   FactExtractor → ReportAuditor → fallback      → facts.json
+├─ synthgen patch report   FactExtractor → ReportAuditor → fallback      → facts.json
 ├─ copilot -p prompts/report-maker.md                               → report.md
                                                                     → report.audit.json
 
 GitLab CI
-└─ pfandwerk notary   ArtifactAuditor over committed artifacts. No DB, no Copilot.
+└─ synthgen patch notary   ArtifactAuditor over committed artifacts. No DB, no Copilot.
 ```
 
 Read the two `copilot` lines against the rest: both come **after** the deterministic step

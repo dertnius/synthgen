@@ -44,7 +44,7 @@ markdown file.
 
 ## Tools
 
-Reading files under `artifacts/` and `rules/` is allowed. Running `pfandwerk <verb>` is
+Reading files under `artifacts/` and `rules/` is allowed. Running `synthgen patch <verb>` is
 allowed when your prompt asks for it. Everything else — shell commands, network access,
 database clients, writes outside `artifacts/` — is denied by default.
 

@@ -95,7 +95,7 @@ public class ReverterTests : IDisposable
     public void Rejects_a_log_naming_an_unknown_rule()
     {
         var log = WriteLog(Line("GONE-001", "101", "Bathrooms", null, "1"));
-        var ex = Assert.Throws<GapRulesLoadException>(() => new Reverter(new FakePatchSink(), Rules).Revert(log));
+        var ex = Assert.Throws<RulesLoadException>(() => new Reverter(new FakePatchSink(), Rules).Revert(log));
         Assert.Contains("GONE-001", ex.Message);
     }
 

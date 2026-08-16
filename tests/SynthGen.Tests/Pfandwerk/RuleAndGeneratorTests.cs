@@ -59,7 +59,7 @@ public class GapPredicateValidatorTests
     [Fact]
     public void Rejects_a_statement_terminator()
     {
-        var ex = Assert.Throws<GapRulesLoadException>(
+        var ex = Assert.Throws<RulesLoadException>(
             () => GapPredicateValidator.Validate(Rule("1=1; DROP TABLE dbo.Security")));
         Assert.Contains("statement terminator", ex.Message);
     }
@@ -69,7 +69,7 @@ public class GapPredicateValidatorTests
     {
         // Hard rule 4: without the AST walk this predicate reads a table the rule never
         // declares, and nothing else in the pipeline would notice.
-        var ex = Assert.Throws<GapRulesLoadException>(
+        var ex = Assert.Throws<RulesLoadException>(
             () => GapPredicateValidator.Validate(
                 Rule("PropertyId IN (SELECT PropertyId FROM dbo.Secrets)")));
         Assert.Contains("dbo.Secrets", ex.Message);
@@ -98,14 +98,14 @@ public class GapRulesLoaderTests
     [Fact]
     public void Derived_rules_require_inputs()
     {
-        var ex = Assert.Throws<GapRulesLoadException>(() => GapRulesLoader.Load(Yaml("derived")));
+        var ex = Assert.Throws<RulesLoadException>(() => GapRulesLoader.Load(Yaml("derived")));
         Assert.Contains("require 'inputs'", ex.Message);
     }
 
     [Fact]
     public void Non_derived_rules_may_not_carry_derived_only_fields()
     {
-        var ex = Assert.Throws<GapRulesLoadException>(
+        var ex = Assert.Throws<RulesLoadException>(
             () => GapRulesLoader.Load(Yaml("ephemeral", "    inputs: [Rooms]")));
         Assert.Contains("only to derived rules", ex.Message);
     }
@@ -227,7 +227,7 @@ public class FixKeyValidationTests
     {
         // Lazily resolving the generator meant a typo stayed dormant until the day the data
         // went bad — the worst possible day to be debugging the rules file.
-        var ex = Assert.Throws<GapRulesLoadException>(
+        var ex = Assert.Throws<RulesLoadException>(
             () => GapRulesLoader.Load(Yaml("ephemeral", "not.a.generator")));
         Assert.Contains("unknown fix key", ex.Message);
     }
@@ -235,7 +235,7 @@ public class FixKeyValidationTests
     [Fact]
     public void A_derived_generator_on_a_random_rule_is_rejected()
     {
-        var ex = Assert.Throws<GapRulesLoadException>(
+        var ex = Assert.Throws<RulesLoadException>(
             () => GapRulesLoader.Load(Yaml("ephemeral", "security.bathroomsFromRooms")));
         Assert.Contains("needs kind: derived", ex.Message);
     }
@@ -243,7 +243,7 @@ public class FixKeyValidationTests
     [Fact]
     public void A_random_generator_on_a_derived_rule_is_rejected()
     {
-        var ex = Assert.Throws<GapRulesLoadException>(
+        var ex = Assert.Throws<RulesLoadException>(
             () => GapRulesLoader.Load(Yaml("derived", "internet.email", "    inputs: [Rooms]")));
         Assert.Contains("not a derived generator", ex.Message);
     }

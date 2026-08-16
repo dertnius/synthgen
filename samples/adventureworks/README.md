@@ -23,8 +23,21 @@ Or against a real SQL Server (schema must already exist there; drop `--provider`
 and pass your connection string): the same rules files work unchanged — every evaluation
 query is written in portable SQL that avoids the computed columns.
 
-The same chain runs in the test suite as `AdventureWorksIntegrationTests` (`[SqliteFact]`,
-skips without conda SQLite).
+The same chain runs in the test suite as `AdventureWorksIntegrationTests` (`[SqliteFact]`);
+local runs may skip without a native SQLite library, while CI makes it mandatory.
+
+The complete pfandwerk demonstration adds deterministic corruption and repairs it through
+the reviewed sample rules:
+
+```powershell
+pwsh samples/adventureworks/run-pfandwerk.ps1
+```
+
+It runs generation, corrupts fixed product/order/customer rows, plans and approves with
+`-Yes`, applies through `IPatchSink`, verifies the consumer postconditions, and audits the
+bare-facts report. A second pass reintroduces the same identity gaps with a different seed;
+the append-only ledger must reuse the original values. The focused
+`AdventureWorksPfandwerkIntegrationTests` test asserts the same contract offline.
 
 Conventions worth copying into your own rules:
 

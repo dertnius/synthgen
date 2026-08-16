@@ -4,7 +4,7 @@ Read `AGENTS.md` first. Its hard rules bind everything below.
 
 ## Task
 
-Read `artifacts/survey.json` (produced by `pfandwerk survey`) and write one draft rules file
+Read `artifacts/survey.json` (produced by `synthgen patch survey`) and write one draft rules file
 per table into `rules/drafts/<table>.yaml`.
 
 A draft is a **proposal for a person to correct**, not a rule. Nothing you write reaches a
@@ -52,7 +52,7 @@ too-cautious draft.
 
 ## Choosing `fix`
 
-Run `pfandwerk generators` and use only a key it lists. If nothing fits, write the rule with
+Run `synthgen patch generators` and use only a key it lists. If nothing fits, write the rule with
 the `fix` you would want and add a comment saying it needs a new generator — that is a code
 change and a reviewed MR, which is deliberate: a rule file may never carry a literal value.
 
@@ -102,7 +102,7 @@ the first three letters of the table name.
 ## What you must not do
 
 - Do not write to `rules/gaps.yaml`. Drafts go to `rules/drafts/` only.
-- Do not run `pfandwerk plan`, `apply`, or anything that touches a database.
+- Do not run `synthgen patch plan`, `apply`, or anything that touches a database.
 - Do not invent counts, rates or values. Every number you write comes from `survey.json`.
 - Do not propose a rule for a column you cannot justify from the survey.
 

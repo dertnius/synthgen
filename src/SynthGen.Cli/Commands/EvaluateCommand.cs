@@ -87,7 +87,7 @@ public sealed class EvaluateCommand : Command<EvaluateCommand.Settings>
             {
                 Evaluations = results,
                 Passed = CliSupport.AllPassed(results),
-            }, CliSupport.JsonOptions));
+            }, Json.Options));
         }
         else
         {

@@ -29,8 +29,8 @@ synthgen evaluate --rules Customers.rules.yaml --json
 ```
 
 No SQL Server handy? The whole loop also runs against SQLite for local smoke tests
-(`--provider sqlite --create-table --connection local.db`) using a conda/micromamba-provided
-SQLite — see [TESTING.md](TESTING.md) and `scripts/setup-sqlite.ps1`.
+(`--provider sqlite --create-table --connection local.db`) using the native library named by
+`SYNTHGEN_SQLITE_DLL` — see [TESTING.md](TESTING.md) and `scripts/setup-sqlite.ps1`.
 
 On a restricted network (nuget.org/anaconda.org blocked)? One command reconfigures every
 dependency and proves the environment works:
@@ -48,6 +48,7 @@ The sample schema has an FK chain: generate `samples/countries.rules.yaml` first
 | `init` | Parse DDL, emit a commented starter rules YAML (strategies, null rates, FK lookup queries, evaluation stubs all inferred from the DDL). |
 | `generate` | Generate rows and bulk-load them; runs the rules file's evaluations afterwards unless `--no-evaluate`. `--dry-run` prints a sample; `--csv` writes a file instead of the DB. |
 | `evaluate` | Run only the evaluations from a rules file. |
+| `patch <verb>` | The pfandwerk subsystem: repair bad values in *existing* rows behind a human approval gate — `survey`, `plan`, `approve`, `apply`, `verify`, `report`, `notary`, `revert`, `generators`. See [docs/runbook.md](docs/runbook.md) and [PFANDWERK-PLAN.md](PFANDWERK-PLAN.md). |
 
 Common options: `--ddl`, `--rules`, `--table` (when the script has several tables),
 `--connection` (falls back to `SYNTHGEN_CONNECTION`), `--rows`/`--seed` (override the rules
@@ -56,12 +57,19 @@ materialize the DDL when using SQLite locally).
 
 ### Exit codes (stable, for scripting)
 
+One scheme for every verb (`SynthGen.Core.Support.ExitCodes`):
+
 | Code | Meaning |
 |---|---|
-| 0 | Success, all evaluations passed |
-| 1 | Data loaded but at least one evaluation failed |
+| 0 | Success |
 | 2 | Config error: bad DDL, rules file, or options |
 | 3 | Database / runtime error |
+| 4 | `patch`: connection not on the committed allowlist |
+| 5 | `patch apply`: identity value conflicts with the append-only ledger |
+| 10 | `patch verify` layer 1: planned repairs did not close their gaps |
+| 20 | `patch verify` layer 2: a rule invariant regressed |
+| 30 | `patch verify` layer 3: a consumer check regressed |
+| 40 | `generate`/`evaluate`: data loaded but at least one evaluation failed |
 
 ## Rules YAML
 
@@ -129,7 +137,7 @@ No `expect` means informational: the value is reported, never fails the run.
   prompts never contain credentials.
 - `--json` emits one machine-readable report on stdout (rows loaded, seed, warnings,
   truncations, per-evaluation pass/fail); progress and warnings go to stderr.
-- Exit codes distinguish "data bad" (1) from "input bad" (2) from "infra bad" (3).
+- Exit codes distinguish "data bad" (40) from "input bad" (2) from "infra bad" (3).
 - One table per run, by design. For FK graphs, run dependency-first (Countries before
   Customers above) — the `query` strategy then samples real parent keys.
 - Deterministic: same DDL + rules + seed ⇒ byte-identical data, so evaluations are stable.
@@ -150,8 +158,11 @@ No `expect` means informational: the value is reported, never fails the run.
 src/SynthGen.Core/     Ddl/ (ScriptDom parser)  Rules/ (YAML + inference + scaffolder)
                        Generation/ (plan, strategies, row generator)
                        Load/ (SqlBulkCopy, CSV)  Eval/ (Dapper evaluator)
-src/SynthGen.Cli/      Spectre.Console.Cli commands: init, generate, evaluate
-tests/SynthGen.Tests/  42 offline unit tests (parse, rules, generation, expectations)
+                       Sqlite/ (native SQLite loaded from SYNTHGEN_SQLITE_DLL)
+                       Support/ (exit codes, JSON/YAML plumbing, DbContext)
+                       Pfandwerk/ (the patch subsystem: rules, planner, patcher, verifier)
+src/SynthGen.Cli/      Spectre.Console.Cli: init, generate, evaluate + the patch branch
+tests/SynthGen.Tests/  one offline test project; local SQLite tests skip, CI requires them
 samples/               customers.sql + countries/customers rules
 ```
 

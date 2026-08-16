@@ -27,6 +27,12 @@ Target connection. Falls back to PFANDWERK_TARGET_CONNECTION.
 .PARAMETER Ledger
 Ledger connection. Falls back to PFANDWERK_LEDGER_CONNECTION, then to -Target.
 
+.PARAMETER Rules
+Gap rules YAML. Defaults to rules/gaps.yaml.
+
+.PARAMETER ConsumerChecks
+Consumer checks YAML. Defaults to rules/consumer-checks.yaml.
+
 .PARAMETER Only
 Comma-separated rule ids to run. Everything else is left untouched.
 
@@ -60,6 +66,8 @@ param(
     [ValidateSet('sqlserver', 'sqlite')][string]$Provider = 'sqlserver',
     [string]$Target,
     [string]$Ledger,
+    [string]$Rules = 'rules/gaps.yaml',
+    [string]$ConsumerChecks = 'rules/consumer-checks.yaml',
     [string]$Only,
     [ValidateSet('sql', 'dab')][string]$Sink = 'sql',
     [string]$DabUrl,
@@ -73,7 +81,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Push-Location $PSScriptRoot
 try {
-    $common = @('--provider', $Provider, '--artifacts', $Artifacts)
+    $common = @('--provider', $Provider, '--artifacts', $Artifacts,
+                '--rules', $Rules, '--consumer-checks', $ConsumerChecks)
     if ($Target) { $common += @('--target', $Target) }
     if ($Ledger) { $common += @('--ledger', $Ledger) }
     if ($Only)   { $common += @('--only', $Only) }
@@ -90,11 +99,11 @@ try {
 
     function Pf([string[]]$CliArgs, [int[]]$Ok = @(0)) {
         if ($WhatIfPreference) {
-            Write-Host "  would run: pfandwerk $($CliArgs -join ' ')" -ForegroundColor DarkGray
+            Write-Host "  would run: synthgen patch $($CliArgs -join ' ')" -ForegroundColor DarkGray
             return 0
         }
-        dotnet run --project src/Pfandwerk -v q -- @CliArgs | Out-Host
-        if ($LASTEXITCODE -notin $Ok) { throw "pfandwerk $($CliArgs[0]) exited $LASTEXITCODE" }
+        dotnet run --project src/SynthGen.Cli -v q -- patch @CliArgs | Out-Host
+        if ($LASTEXITCODE -notin $Ok) { throw "synthgen patch $($CliArgs[0]) exited $LASTEXITCODE" }
         return $LASTEXITCODE
     }
 

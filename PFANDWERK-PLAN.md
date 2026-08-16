@@ -1,5 +1,22 @@
 # pfandwerk — build plan
 
+> **Errata (2026-08-16, repo consolidation).** This document is the design history; the
+> implementation has since been folded into one solution, one CLI, three projects:
+>
+> - The standalone `pfandwerk` executable is now the **`synthgen patch` branch** of the
+>   single `synthgen` CLI — every `pfandwerk <verb>` below reads as `synthgen patch <verb>`
+>   (`src/SynthGen.Cli/Commands/Patch/`). The agent permission shape is therefore
+>   `synthgen patch <verb>`, three tokens.
+> - The domain code lives in `src/SynthGen.Core/Pfandwerk/` (namespace `Pfandwerk`
+>   unchanged); `src/SynthGen.Sqlite` was merged into `src/SynthGen.Core/Sqlite/`;
+>   `tests/Pfandwerk.Tests` was merged into `tests/SynthGen.Tests`.
+> - The §4 reuse promises are now real: one `ExitCodes` scheme (`SynthGen.Core.Support`,
+>   with `EvaluationFailed = 40`), one JSON/YAML plumbing, and `CheckRunner` delegates to
+>   `SynthGen.Core.Eval.Evaluator`.
+>
+> Everything else — decisions D1–D18, hard rules, phase semantics, artifacts, exit codes
+> 0/2/3/4/5/10/20/30 — is unchanged.
+
 Rule-driven synthetic gap repair for SQL Server. Deterministic C# patches bad table data
 (SynthGen.Core + Bogus). GitHub Copilot CLI agents run **locally only**, for planning narrative and
 report prose. GitLab CI is a notary: it audits artifacts, it never generates.

@@ -210,7 +210,7 @@ public sealed class GenerateCommand : Command<GenerateCommand.Settings>
                 Truncations = generator.Truncations,
                 Evaluations = evaluations,
                 Passed = evaluations is null || CliSupport.AllPassed(evaluations),
-            }, CliSupport.JsonOptions));
+            }, Json.Options));
         }
         else
         {
