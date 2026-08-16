@@ -12,7 +12,7 @@ namespace SynthGen.Core.Generation;
 public sealed class RowGenerator
 {
     private readonly GenerationPlan _plan;
-    private readonly IValueGenerator[] _generators;
+    private readonly ValueGenerator[] _generators;
     private readonly GenerationContext _context;
     private readonly Dictionary<string, int> _truncations = new(StringComparer.OrdinalIgnoreCase);
 
@@ -33,11 +33,10 @@ public sealed class RowGenerator
         EffectiveSeed = plan.Rules.Seed ?? Random.Shared.Next(int.MaxValue);
         _context = new GenerationContext
         {
-            Rng = new Random(EffectiveSeed),
             Faker = new Faker("en") { Random = new Randomizer(EffectiveSeed) },
         };
 
-        _generators = new IValueGenerator[plan.Columns.Count];
+        _generators = new ValueGenerator[plan.Columns.Count];
         for (int i = 0; i < plan.Columns.Count; i++)
             _generators[i] = BuildChain(plan.Columns[i], lookupData);
     }
@@ -49,7 +48,7 @@ public sealed class RowGenerator
             _context.RowNumber = row;
             var values = new object?[_generators.Length];
             for (int i = 0; i < _generators.Length; i++)
-                values[i] = _generators[i].Next(_context);
+                values[i] = _generators[i](_context);
             yield return values;
         }
     }
@@ -57,7 +56,7 @@ public sealed class RowGenerator
     private void CountTruncation(string column) =>
         _truncations[column] = _truncations.GetValueOrDefault(column) + 1;
 
-    private IValueGenerator BuildChain(
+    private ValueGenerator BuildChain(
         PlannedColumn planned,
         IReadOnlyDictionary<string, IReadOnlyList<object>>? lookupData)
     {
@@ -65,17 +64,17 @@ public sealed class RowGenerator
 
         // Coerce (incl. string truncation to DDL length) BEFORE the unique check, so
         // uniqueness is enforced on the value that actually reaches the database.
-        generator = new CoercingWrapper(generator, planned.Column, CountTruncation);
+        generator = ValueGenerators.Coercing(generator, planned.Column, CountTruncation);
 
         if (planned.Rule.Unique == true)
-            generator = new UniqueWrapper(generator, planned.Column.Name);
+            generator = ValueGenerators.Unique(generator, planned.Column.Name);
         if (planned.Rule.NullRate is > 0)
-            generator = new NullRateWrapper(generator, planned.Rule.NullRate.Value);
+            generator = ValueGenerators.WithNullRate(generator, planned.Rule.NullRate.Value);
 
         return generator;
     }
 
-    private static IValueGenerator BuildBase(
+    private static ValueGenerator BuildBase(
         PlannedColumn planned,
         IReadOnlyDictionary<string, IReadOnlyList<object>>? lookupData)
     {
@@ -84,31 +83,31 @@ public sealed class RowGenerator
 
         return rule.Strategy switch
         {
-            "int" => new IntGenerator(
+            "int" => ValueGenerators.Int(
                 ParseLong(rule.Min, col, 0),
                 ParseLong(rule.Max, col, 1_000_000)),
-            "decimal" => new DecimalGenerator(
+            "decimal" => ValueGenerators.Decimal(
                 ParseDecimal(rule.Min, col, 0),
                 ParseDecimal(rule.Max, col, 10_000)),
-            "bool" => new BoolGenerator(rule.TrueRate ?? 0.5),
-            "date" => new DateTimeGenerator(
+            "bool" => ValueGenerators.Bool(rule.TrueRate ?? 0.5),
+            "date" => ValueGenerators.Date(
                 ParseDate(rule.Min, col, new DateTime(2020, 1, 1)),
                 ParseDate(rule.Max, col, new DateTime(2025, 12, 31)),
                 dateOnly: true),
-            "datetime" => new DateTimeGenerator(
+            "datetime" => ValueGenerators.Date(
                 ParseDate(rule.Min, col, new DateTime(2020, 1, 1)),
                 ParseDate(rule.Max, col, new DateTime(2025, 12, 31)),
                 dateOnly: false),
-            "time" => new TimeGenerator(ParseTime(rule.Min, col), ParseTime(rule.Max, col)),
-            "guid" => new GuidGenerator(),
-            "string" => new StringGenerator(rule.Length ?? DefaultStringLength(col)),
-            "bytes" => new BytesGenerator(rule.Length ?? DefaultBytesLength(col)),
-            "template" => new TemplateGenerator(rule.Template!),
-            "pick" => new PickGenerator(rule.Values!, rule.Weights),
-            "sequence" => new SequenceGenerator(rule.Start ?? 1, rule.Step ?? 1),
-            "faker" => new FakerGenerator(rule.Method!),
-            "constant" => new ConstantGenerator(rule.Value!),
-            "query" => new LookupGenerator(
+            "time" => ValueGenerators.Time(ParseTime(rule.Min, col), ParseTime(rule.Max, col)),
+            "guid" => ValueGenerators.Guid(),
+            "string" => ValueGenerators.String(rule.Length ?? DefaultStringLength(col)),
+            "bytes" => ValueGenerators.Bytes(rule.Length ?? DefaultBytesLength(col)),
+            "template" => ValueGenerators.Template(rule.Template!),
+            "pick" => ValueGenerators.Pick(rule.Values!, rule.Weights),
+            "sequence" => ValueGenerators.Sequence(rule.Start ?? 1, rule.Step ?? 1),
+            "faker" => ValueGenerators.FakerMethod(rule.Method!),
+            "constant" => ValueGenerators.Constant(rule.Value!),
+            "query" => ValueGenerators.Lookup(
                 col.Name,
                 lookupData?.GetValueOrDefault(col.Name)
                     ?? throw new GenerationException(
