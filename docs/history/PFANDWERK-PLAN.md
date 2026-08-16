@@ -1,5 +1,11 @@
 # pfandwerk — build plan
 
+> **Historical record, frozen 2026-08-16.** This is the design history of the pfandwerk
+> subsystem, kept for the reasoning behind decisions D1–D18. It is no longer updated;
+> where it disagrees with [README.md](../../README.md) or
+> [docs/runbook.md](../runbook.md) — including its §5 repo layout and parts of §2 D3 —
+> the current docs win.
+
 > **Errata (2026-08-16, repo consolidation).** This document is the design history; the
 > implementation has since been folded into one solution, one CLI, three projects:
 >

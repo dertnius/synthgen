@@ -1,5 +1,8 @@
 # Copilot CLI findings (pfandwerk P0b spike)
 
+> **Historical record, frozen 2026-08.** Point-in-time results of the P0b Copilot CLI
+> spike. Kept for the reasoning; not updated as Copilot CLI evolves.
+
 CLI: GitHub Copilot CLI **1.0.80**, installed via `npm install -g @github/copilot`
 (3 packages, 8s). Probed on Linux; flag surface is platform-independent.
 

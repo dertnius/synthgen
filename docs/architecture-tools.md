@@ -1,8 +1,9 @@
 # Who does what — tools, gap detection, and how the agents are called
 
-`PFANDWERK-PLAN.md` §3 gives the phase order. This file answers the next question: which
-tool is actually running at each point, what it is allowed to touch, and where the agents
-sit relative to the database.
+The design history ([docs/history/PFANDWERK-PLAN.md](history/PFANDWERK-PLAN.md) §3) gives
+the phase order. This file answers the next question: which tool is actually running at
+each point, what it is allowed to touch, and where the agents sit relative to the
+database.
 
 The single organising rule: **agents produce prose, code produces data.** Everything below
 is a consequence of that.
@@ -22,20 +23,11 @@ is a consequence of that.
 
 Two of these deserve immediate qualification.
 
-**DAB is implemented and selectable with `--sink dab`** — see [`dab/`](../dab/README.md).
-`dab-config.json` was generated with the DAB CLI and passes `dab validate`, resolving
-`/api/Property` and `/api/Security`; `DabPatchSink` writes through it.
-
-`SqlPatchSink` remains the default because only it can enrol the ledger write and the target
-write in one transaction (D12). On the DAB path a ledger row means *reserved* rather than
-*applied*, and each row costs two HTTP round trips — a GET to read the previous value so the
-run stays revertible, then the PATCH.
-
-Two things the generated config had to be corrected for, both worth knowing if you
-regenerate it: DAB 2.0.10 enables an **MCP endpoint by default**, which would expose the
-target tables to any MCP client — including an agent — and it grants entity permissions
-broadly unless told otherwise. pfandwerk's config disables MCP and GraphQL and grants
-`read, update` only, so no code path through DAB can insert or delete a row.
+**DAB is implemented and selectable with `--sink dab`.** `SqlPatchSink` remains the
+default because only it can enrol the ledger write and the target write in one
+transaction (D12); on the DAB path a ledger row means *reserved* rather than *applied*.
+Configuration, per-setting rationale, limits, and the regeneration recipe live in
+[`dab/README.md`](../dab/README.md) — the sole home for DAB facts.
 
 **Bogus runs at PLAN, never at APPLY.** This is the D2 decision made concrete. By the time
 `Patcher` runs, every value already exists as a literal inside `plan.json`, and that file's
@@ -189,7 +181,7 @@ across runs.
 
 Prompt instructions are not a security boundary — a model that ignores them is not
 misbehaving in a way instructions can prevent. The P0b spike
-(`docs/copilot-cli-findings.md`) found that Copilot CLI has **no hook mechanism**, so the
+([docs/history/copilot-cli-findings.md](history/copilot-cli-findings.md)) found that Copilot CLI has **no hook mechanism**, so the
 originally planned pre/post-tool-use hooks were never built. Containment comes from the
 CLI's own permission system instead, composed by `run.ps1` on every agent invocation:
 

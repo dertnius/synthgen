@@ -48,7 +48,7 @@ The sample schema has an FK chain: generate `samples/countries.rules.yaml` first
 | `init` | Parse DDL, emit a commented starter rules YAML (strategies, null rates, FK lookup queries, evaluation stubs all inferred from the DDL). |
 | `generate` | Generate rows and bulk-load them; runs the rules file's evaluations afterwards unless `--no-evaluate`. `--dry-run` prints a sample; `--csv` writes a file instead of the DB. |
 | `evaluate` | Run only the evaluations from a rules file. |
-| `patch <verb>` | The pfandwerk subsystem: repair bad values in *existing* rows behind a human approval gate — `survey`, `plan`, `approve`, `apply`, `verify`, `report`, `notary`, `revert`, `generators`. See [docs/runbook.md](docs/runbook.md) and [PFANDWERK-PLAN.md](PFANDWERK-PLAN.md). |
+| `patch <verb>` | The pfandwerk subsystem: repair bad values in *existing* rows behind a human approval gate — `survey`, `plan`, `approve`, `apply`, `verify`, `report`, `notary`, `revert`, `generators`. See [docs/runbook.md](docs/runbook.md); design history in [docs/history/](docs/history/PFANDWERK-PLAN.md). |
 | `sample adventureworks-corrupt` | Seed deterministic corruption into a generated AdventureWorks database — the setup step of the pfandwerk demo (`samples/adventureworks/run-pfandwerk.ps1`). |
 
 Common options: `--ddl`, `--rules`, `--table` (when the script has several tables),
