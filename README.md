@@ -168,8 +168,11 @@ samples/               customers.sql + countries/customers rules
                        adventureworks/ (11-table AdventureWorks-compatible integration sample)
 ```
 
-Build & test: `dotnet build` / `dotnet test`. Pack as a tool: the CLI is a plain console
-app — `dotnet publish -c Release` and put `synthgen` on PATH.
+Build & test: `dotnet build` / `dotnet test`. Both need the .NET 10 SDK on PATH, which a
+fresh container does not have — [TESTING.md](TESTING.md#prerequisites--the-net-10-sdk-must-be-installed-first)
+covers provisioning it and why an unverified change must be reported as unverified. Pack as
+a tool: the CLI is a plain console app — `dotnet publish -c Release` and put `synthgen` on
+PATH.
 
 **Docs rule — one fact, one home.** Commands, options, and exit codes live here;
 operating a repair lives in [docs/runbook.md](docs/runbook.md); test strategy in

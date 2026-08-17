@@ -4,6 +4,37 @@ Production targets SQL Server 2019+ via `SqlBulkCopy`, which cannot run without 
 server. Testing therefore happens on three levels, all runnable on a locked-down machine
 (no LocalDB, no Docker, binary downloads blocked by the enterprise network).
 
+## Prerequisites — the .NET 10 SDK must be installed first
+
+Nothing in this repository vendors a toolchain. Every verb below — `dotnet build`,
+`dotnet test`, and every `synthgen` command, since the CLI runs as `dotnet run --project
+src/SynthGen.Cli --` during development — needs the **.NET 10 SDK** on PATH. There is no
+`global.json`, so any 10.x SDK satisfies `Directory.Build.props`.
+
+Check before starting work, not after:
+
+```bash
+dotnet --version        # expect 10.x
+```
+
+If that prints nothing, the environment is not ready. This is the normal state of a fresh
+container — a Claude Code on the web session, a scratch VM, a CI image without the setup
+step — and it is **not** something to work around:
+
+- Enterprise / offline machines: `powershell -ExecutionPolicy Bypass -File
+  scripts\enterprise\setup-enterprise.ps1` provisions the SDK from the software catalog
+  along with everything else — see [ENTERPRISE-SETUP.md](ENTERPRISE-SETUP.md).
+- Anywhere else: install the 10.x SDK from the usual channel for the platform, then
+  `export SYNTHGEN_SQLITE_DLL=...` (see [SQLite provisioning](#sqlite-provisioning)) so the
+  integration layer runs instead of skipping.
+
+Until `dotnet --version` answers, **no change to this repository has been verified**.
+Reading the code is not a substitute for running the suite: the pipeline's failure modes —
+plan warnings, string truncation against a declared length, an evaluation returning the
+wrong scalar, a unique retry running dry — are all invisible to inspection and all caught
+by `dotnet test` in seconds. If you cannot install the SDK, say so plainly and mark the
+work unverified; do not report it as tested.
+
 ## 1. Pure unit tests (no I/O)
 
 Parsing, rules validation, scaffolding, generation determinism, ranges, null rates,
@@ -37,9 +68,10 @@ passes. This layer already caught a real production bug (Dapper `Query<object>` 
 
 The real-world workout is
 [AdventureWorksIntegrationTests.cs](tests/SynthGen.Tests/AdventureWorksIntegrationTests.cs):
-an 8-table subset of Microsoft's public AdventureWorks schema
-([samples/adventureworks/](samples/adventureworks/README.md)) — three schemas, cross-schema
-FK chains, a composite PK with IDENTITY, computed columns, and CHECK-mirroring rules —
+an 11-table subset of Microsoft's public AdventureWorks schema
+([samples/adventureworks/](samples/adventureworks/README.md)) — four schemas, cross-schema
+FK chains, composite PKs with and without IDENTITY, computed columns, and CHECK-mirroring
+rules —
 loaded in dependency order with every evaluation asserted. The same chain runs via the
 CLI with `pwsh samples/adventureworks/run-local.ps1`.
 
