@@ -10,10 +10,11 @@ using SynthGen.Tests.Support;
 namespace SynthGen.Tests;
 
 /// <summary>
-/// Real-world integration test: a 9-table AdventureWorks-compatible subset (Microsoft's
+/// Real-world integration test: an 11-table AdventureWorks-compatible subset (Microsoft's
 /// public SQL Server sample schema) generated and validated end-to-end on SQLite.
-/// Exercises multi-schema attach (Person + Production + Sales), cross-schema FK chains, a
-/// composite PK with IDENTITY, computed-column skipping, and CHECK-mirroring rules.
+/// Exercises multi-schema attach (HumanResources + Person + Production + Sales),
+/// cross-schema FK chains, a composite PK with IDENTITY and one without, computed-column
+/// skipping, and CHECK-mirroring rules.
 /// </summary>
 public sealed class AdventureWorksIntegrationTests : IDisposable
 {
@@ -28,6 +29,8 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
         "06-salesorderheader.rules.yaml",
         "07-salesorderdetail.rules.yaml",
         "08-currency.rules.yaml",
+        "09-employee.rules.yaml",
+        "10-employeefinancials.rules.yaml",
     };
 
     private readonly string _dir;
@@ -57,10 +60,10 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
     [Fact]
     public void Ddl_parses_with_expected_shape()
     {
-        Assert.Equal(9, _tables.Count);
+        Assert.Equal(11, _tables.Count);
         Assert.Equal(
-            new[] { "Person", "Production", "Sales" },
-            _tables.Select(t => t.Schema).Distinct().OrderBy(s => s));
+            new[] { "HumanResources", "Person", "Production", "Sales" },
+            _tables.Select(t => t.Schema).Distinct().OrderBy(s => s, StringComparer.Ordinal));
 
         var detail = _tables.Single(t => t.Name == "SalesOrderDetail");
         Assert.Equal(new[] { "SalesOrderID", "SalesOrderDetailID" }, detail.PrimaryKeyColumns);
@@ -75,6 +78,19 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
         // Reserved-word column parsed correctly.
         var territory = _tables.Single(t => t.Name == "SalesTerritory");
         Assert.NotNull(territory.FindColumn("Group"));
+
+        // Composite PK with no IDENTITY member: both halves come from the rules file.
+        var financials = _tables.Single(t => t.Name == "EmployeeFinancials");
+        Assert.Equal("HumanResources", financials.Schema);
+        Assert.Equal(new[] { "BusinessEntityID", "EffectiveDate" }, financials.PrimaryKeyColumns);
+        Assert.All(financials.PrimaryKeyColumns,
+                   c => Assert.False(financials.FindColumn(c)!.IsIdentity));
+        Assert.Equal(2, financials.ForeignKeys.Count);
+        Assert.Equal(3, financials.CheckConstraints.Count);
+        Assert.All(
+            new[] { "BaseSalary", "BonusTarget", "PayFrequency" },
+            c => Assert.Contains(financials.CheckConstraints,
+                                 ck => ck.Name == $"CK_EmployeeFinancials_{c}"));
     }
 
     [SqliteFact]
@@ -113,7 +129,7 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
                 r.Passed, $"{rulesFile} / {r.Name}: value={r.Value} expected={r.Expected} ({r.Error})"));
         }
 
-        Assert.Equal(1000 + 4 + 12 + 200 + 10 + 300 + 500 + 2000 + 24, totalRows);
+        Assert.Equal(1000 + 4 + 12 + 200 + 10 + 300 + 500 + 2000 + 24 + 400 + 250, totalRows);
 
         // Cross-table sanity beyond the per-table evaluations: order lines join back
         // through header AND product across schemas in one query.
@@ -133,6 +149,18 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
             WHERE c.[PersonID] IS NOT NULL AND p.[PersonID] IS NULL
             """);
         Assert.Equal(0, orphanPeople);
+
+        // The HR chain crosses three schemas in one hop: a compensation row resolves to an
+        // employee, that employee to a person, and its currency to the Sales vocabulary.
+        var orphanFinancials = check.ExecuteScalar<long>("""
+            SELECT COUNT(*)
+            FROM [HumanResources].[EmployeeFinancials] f
+            LEFT JOIN [HumanResources].[Employee] e ON e.[BusinessEntityID] = f.[BusinessEntityID]
+            LEFT JOIN [Person].[Person] p ON p.[PersonID] = e.[BusinessEntityID]
+            LEFT JOIN [Sales].[Currency] c ON c.[CurrencyCode] = f.[CurrencyCode]
+            WHERE e.[BusinessEntityID] IS NULL OR p.[PersonID] IS NULL OR c.[CurrencyCode] IS NULL
+            """);
+        Assert.Equal(0, orphanFinancials);
     }
 
     [SqliteFact]
@@ -167,5 +195,16 @@ public sealed class AdventureWorksIntegrationTests : IDisposable
         // Composite-PK identity member: supplied by the sequence rule, globally unique.
         Assert.Equal(2000L, check.ExecuteScalar<long>(
             "SELECT COUNT(DISTINCT [SalesOrderDetailID]) FROM [Sales].[SalesOrderDetail]"));
+
+        // Composite PK with no identity member: SynthGen enforces single-column uniqueness
+        // only, so the rules file makes BusinessEntityID unique to keep the pair unique.
+        Assert.Equal(0L, check.ExecuteScalar<long>("""
+            SELECT COUNT(*) FROM (
+                SELECT [BusinessEntityID], [EffectiveDate]
+                FROM [HumanResources].[EmployeeFinancials]
+                GROUP BY [BusinessEntityID], [EffectiveDate]
+                HAVING COUNT(*) > 1
+            ) dupes
+            """));
     }
 }

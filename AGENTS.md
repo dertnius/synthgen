@@ -57,3 +57,24 @@ database clients, writes outside `artifacts/` — is denied by default.
 
 A denied tool call is not an obstacle to work around. If you need something that is
 denied, stop and say what you needed.
+
+### Always run the tool; never simulate it
+
+Every claim you make about this repository must come from a tool that actually ran.
+
+- **Run it, don't reason it.** `synthgen patch lint`, `synthgen patch generators`,
+  `dotnet build`, `dotnet test` — when one of these covers the question, run it. Predicting
+  its output from the source is not the same answer, and the cases where it differs are
+  exactly the ones worth catching.
+- **Report what it printed**, including exit codes, not what you expected it to print. The
+  exit codes are stable and documented in [README.md](README.md#exit-codes-stable-for-scripting)
+  precisely so they can be quoted rather than paraphrased.
+- **A missing toolchain is a stop, not a fallback.** These verbs need the .NET 10 SDK, which
+  a fresh container does not have — see
+  [TESTING.md](TESTING.md#prerequisites--the-net-10-sdk-must-be-installed-first). If it is
+  absent, provision it. If you cannot, say so in one line, state which checks did not run,
+  and mark the work unverified. Do not describe hand-traced code as tested, and do not let
+  a green-looking narrative stand in for a green suite.
+
+This is the same rule as "never invent a number", applied to your own work instead of the
+JSON: an unrun check is not a passing check.

@@ -1,0 +1,75 @@
+# [HumanResources].[Employee] — 400 employees drawn from the 1000 generated people.
+#
+# BusinessEntityID is both the primary key and a foreign key. Inference sees the FK first
+# and stops there, so it produces a `query` rule *without* `unique` — a PK column would
+# then collide. The explicit `unique: true` below is the fix, and the pk-unique evaluation
+# is what proves it. Keep `rows` well under the parent row count: `unique` retries a draw
+# 100 times before failing, so sampling the tail of an almost-exhausted parent is what
+# turns a green run red.
+
+table: HumanResources.Employee
+rows: 400
+seed: 109
+
+columns:
+  BusinessEntityID:
+    strategy: query
+    query: SELECT [PersonID] FROM [Person].[Person]
+    unique: true              # PK member: the FK inference does not add this
+  NationalIDNumber:
+    strategy: template
+    template: "NID-{row}"
+    unique: true
+  LoginID:
+    strategy: template
+    template: 'adventure-works\user{row}'
+    unique: true
+  JobTitle:
+    strategy: faker
+    method: name.jobTitle
+  HireDate:
+    strategy: date
+    min: 2015-01-01
+    max: 2025-06-30
+  SalariedFlag:              # NOT NULL with a DEFAULT: generated explicitly so the rules
+    strategy: bool           # stay portable to engines without SQL Server's defaults.
+    trueRate: 0.7
+  CurrentFlag:
+    strategy: bool
+    trueRate: 0.95
+  rowguid:
+    strategy: guid
+    unique: true
+  ModifiedDate:
+    strategy: datetime
+    min: 2024-01-01
+    max: 2025-06-30
+
+evaluations:
+  - name: row-count
+    query: SELECT COUNT(*) FROM [HumanResources].[Employee]
+    expect:
+      equals: 400
+  - name: pk-unique
+    query: >-
+      SELECT COUNT(*) - COUNT(DISTINCT [BusinessEntityID])
+      FROM [HumanResources].[Employee]
+    expect:
+      equals: 0
+  - name: fk-person
+    query: >-
+      SELECT COUNT(*) FROM [HumanResources].[Employee] e
+      LEFT JOIN [Person].[Person] p ON p.[PersonID] = e.[BusinessEntityID]
+      WHERE p.[PersonID] IS NULL
+    expect:
+      equals: 0
+  - name: nationalid-unique
+    query: >-
+      SELECT COUNT(*) - COUNT(DISTINCT [NationalIDNumber])
+      FROM [HumanResources].[Employee]
+    expect:
+      equals: 0
+  - name: current-share      # informational: no expect, the value is just reported
+    query: >-
+      SELECT CAST(SUM(CASE WHEN [CurrentFlag] = 1 THEN 1.0 ELSE 0.0 END) / COUNT(*) AS FLOAT)
+      FROM [HumanResources].[Employee]
