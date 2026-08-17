@@ -165,7 +165,7 @@ src/SynthGen.Core/     Ddl/ (ScriptDom parser)  Rules/ (YAML + inference + scaff
 src/SynthGen.Cli/      Spectre.Console.Cli: init, generate, evaluate + the patch branch
 tests/SynthGen.Tests/  one offline test project; local SQLite tests skip, CI requires them
 samples/               customers.sql + countries/customers rules
-                       adventureworks/ (8-table AdventureWorks-compatible integration sample)
+                       adventureworks/ (11-table AdventureWorks-compatible integration sample)
 ```
 
 Build & test: `dotnet build` / `dotnet test`. Pack as a tool: the CLI is a plain console

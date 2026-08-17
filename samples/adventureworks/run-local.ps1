@@ -24,7 +24,9 @@ $rules = @(
     '05-customer.rules.yaml',
     '06-salesorderheader.rules.yaml',
     '07-salesorderdetail.rules.yaml',
-    '08-currency.rules.yaml'
+    '08-currency.rules.yaml',
+    '09-employee.rules.yaml',
+    '10-employeefinancials.rules.yaml'
 )
 
 # Fresh run: remove previous database files (main + per-schema attachments).

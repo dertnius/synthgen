@@ -1,0 +1,130 @@
+# [HumanResources].[EmployeeFinancials] — 250 current compensation records.
+#
+# Two things this table needs that the DDL cannot enforce for us:
+#
+# 1. The PK is composite, (BusinessEntityID, EffectiveDate), and neither half is IDENTITY.
+#    SynthGen enforces single-column uniqueness only, so a random date paired with a
+#    resampled employee would collide. This file makes BusinessEntityID itself unique —
+#    one current record per employee — which makes the pair unique whatever the date is.
+#    For real history (several effective dates per employee), run this file once per
+#    cohort with `EffectiveDate: { strategy: constant, value: 2024-01-01 }` and a
+#    different date each pass: a constant date plus a unique employee is still unique.
+#
+# 2. The three CHECK constraints are parsed but not enforced by the generator, so they are
+#    mirrored here as ranges and a pick, and re-asserted as ck-* evaluations below. Note
+#    BaseSalary's `min` is above zero, not zero: CK_..._BaseSalary is > 0, not >= 0.
+#
+# TaxID, IBAN and BankName are the reason this table exists in the sample. In production
+# they hold real tax and bank identifiers, which is exactly what must never be copied into
+# a test environment — so they are synthesised here and never sourced from anywhere.
+
+table: HumanResources.EmployeeFinancials
+rows: 250
+seed: 110
+
+columns:
+  BusinessEntityID:
+    strategy: query
+    query: SELECT [BusinessEntityID] FROM [HumanResources].[Employee]
+    unique: true              # PK member — see note 1 above
+  EffectiveDate:
+    strategy: date
+    min: 2024-01-01
+    max: 2025-06-30
+  BaseSalary:
+    strategy: decimal
+    min: 32000
+    max: 210000               # CK_EmployeeFinancials_BaseSalary: > 0
+  BonusTarget:
+    strategy: decimal
+    min: 0
+    max: 40000                # CK_EmployeeFinancials_BonusTarget: >= 0
+  CurrencyCode:
+    strategy: query
+    query: SELECT [CurrencyCode] FROM [Sales].[Currency]
+  PayFrequency:
+    strategy: pick
+    values: [1, 2]            # CK_EmployeeFinancials_PayFrequency: IN (1, 2)
+    weights: [0.65, 0.35]     # 1 = monthly, 2 = biweekly
+  TaxID:
+    strategy: template
+    template: "TAX-{rand:100000000-999999999}"
+    nullRate: 0.08
+  IBAN:
+    strategy: faker
+    method: finance.iban
+    nullRate: 0.05
+  BankName:
+    strategy: faker
+    method: company.companyName
+    nullRate: 0.05
+  rowguid:
+    strategy: guid
+    unique: true
+  ModifiedDate:
+    strategy: datetime
+    min: 2024-01-01
+    max: 2025-06-30
+
+evaluations:
+  - name: row-count
+    query: SELECT COUNT(*) FROM [HumanResources].[EmployeeFinancials]
+    expect:
+      equals: 250
+
+  # The composite PK invariant, written portably: COUNT(DISTINCT a, b) is SQL Server only.
+  - name: pk-unique
+    query: >-
+      SELECT COUNT(*) FROM (
+        SELECT [BusinessEntityID], [EffectiveDate]
+        FROM [HumanResources].[EmployeeFinancials]
+        GROUP BY [BusinessEntityID], [EffectiveDate]
+        HAVING COUNT(*) > 1
+      ) dupes
+    expect:
+      equals: 0
+
+  - name: fk-employee
+    query: >-
+      SELECT COUNT(*) FROM [HumanResources].[EmployeeFinancials] f
+      LEFT JOIN [HumanResources].[Employee] e
+        ON e.[BusinessEntityID] = f.[BusinessEntityID]
+      WHERE e.[BusinessEntityID] IS NULL
+    expect:
+      equals: 0
+  - name: fk-currency
+    query: >-
+      SELECT COUNT(*) FROM [HumanResources].[EmployeeFinancials] f
+      LEFT JOIN [Sales].[Currency] c ON c.[CurrencyCode] = f.[CurrencyCode]
+      WHERE c.[CurrencyCode] IS NULL
+    expect:
+      equals: 0
+
+  - name: ck-basesalary
+    query: SELECT COUNT(*) FROM [HumanResources].[EmployeeFinancials] WHERE [BaseSalary] <= 0
+    expect:
+      equals: 0
+  - name: ck-bonustarget
+    query: SELECT COUNT(*) FROM [HumanResources].[EmployeeFinancials] WHERE [BonusTarget] < 0
+    expect:
+      equals: 0
+  - name: ck-payfrequency
+    query: >-
+      SELECT COUNT(*) FROM [HumanResources].[EmployeeFinancials]
+      WHERE [PayFrequency] NOT IN (1, 2)
+    expect:
+      equals: 0
+
+  - name: rowguid-unique
+    query: >-
+      SELECT COUNT(*) - COUNT(DISTINCT [rowguid])
+      FROM [HumanResources].[EmployeeFinancials]
+    expect:
+      equals: 0
+
+  # Sensitive columns are nullable by design; these report how much of each is populated
+  # so a reviewer can see the shape without any expectation failing the run.
+  - name: taxid-populated
+    query: SELECT COUNT([TaxID]) FROM [HumanResources].[EmployeeFinancials]
+  - name: iban-populated
+    query: SELECT COUNT([IBAN]) FROM [HumanResources].[EmployeeFinancials]

@@ -1,8 +1,8 @@
 -- AdventureWorks-compatible schema subset (structure follows Microsoft's public
--- AdventureWorks sample database). Eight tables across three schemas, exercising:
--- cross-schema FKs, composite PK with IDENTITY, computed columns, NEWID()/GETDATE()
--- defaults, ROWGUIDCOL, money/nchar/tinyint types, reserved-word column names,
--- and CHECK constraints. Dependency order: top to bottom.
+-- AdventureWorks sample database). Eleven tables across four schemas, exercising:
+-- cross-schema FKs, composite PKs with and without IDENTITY, computed columns,
+-- NEWID()/GETDATE() defaults, ROWGUIDCOL, money/nchar/tinyint/date types, reserved-word
+-- column names, and CHECK constraints. Dependency order: top to bottom.
 
 CREATE TABLE [Person].[Person](
     [PersonID] [int] IDENTITY(1,1) NOT NULL,
@@ -154,4 +154,50 @@ CREATE TABLE [Sales].[SalesOrderDetail](
     CONSTRAINT [CK_SalesOrderDetail_OrderQty] CHECK ([OrderQty] > 0),
     CONSTRAINT [CK_SalesOrderDetail_UnitPrice] CHECK ([UnitPrice] >= 0.00),
     CONSTRAINT [CK_SalesOrderDetail_UnitPriceDiscount] CHECK ([UnitPriceDiscount] >= 0.00)
+);
+
+-- HumanResources subset. Employee keys off the Person rows above; this subset's person
+-- key is [PersonID], so the FK below crosses the AdventureWorks naming seam rather than
+-- renaming the employee column the rest of the HR schema references.
+CREATE TABLE [HumanResources].[Employee](
+    [BusinessEntityID] [int] NOT NULL,
+    [NationalIDNumber] [nvarchar](15) NOT NULL,
+    [LoginID] [nvarchar](256) NOT NULL,
+    [JobTitle] [nvarchar](50) NOT NULL,
+    [HireDate] [date] NOT NULL,
+    [SalariedFlag] [bit] NOT NULL CONSTRAINT [DF_Employee_SalariedFlag] DEFAULT (1),
+    [CurrentFlag] [bit] NOT NULL CONSTRAINT [DF_Employee_CurrentFlag] DEFAULT (1),
+    [rowguid] [uniqueidentifier] ROWGUIDCOL NOT NULL CONSTRAINT [DF_Employee_rowguid] DEFAULT (NEWID()),
+    [ModifiedDate] [datetime] NOT NULL CONSTRAINT [DF_Employee_ModifiedDate] DEFAULT (GETDATE()),
+    CONSTRAINT [PK_Employee_BusinessEntityID] PRIMARY KEY CLUSTERED ([BusinessEntityID]),
+    CONSTRAINT [AK_Employee_NationalIDNumber] UNIQUE ([NationalIDNumber]),
+    CONSTRAINT [AK_Employee_rowguid] UNIQUE ([rowguid]),
+    CONSTRAINT [FK_Employee_Person_BusinessEntityID] FOREIGN KEY ([BusinessEntityID])
+        REFERENCES [Person].[Person] ([PersonID])
+);
+
+-- Compensation records. Two firsts for this subset: a composite PK with no IDENTITY
+-- member (both halves come from rules), and columns that in production would hold real
+-- tax and bank identifiers — the reason this table is generated and never copied.
+CREATE TABLE [HumanResources].[EmployeeFinancials](
+    [BusinessEntityID] [int] NOT NULL,
+    [EffectiveDate] [date] NOT NULL,
+    [BaseSalary] [money] NOT NULL,
+    [BonusTarget] [money] NOT NULL CONSTRAINT [DF_EmployeeFinancials_BonusTarget] DEFAULT (0),
+    [CurrencyCode] [nchar](3) NOT NULL,
+    [PayFrequency] [tinyint] NOT NULL,      -- 1 = monthly, 2 = biweekly
+    [TaxID] [nvarchar](20) NULL,
+    [IBAN] [nvarchar](34) NULL,
+    [BankName] [nvarchar](60) NULL,
+    [rowguid] [uniqueidentifier] ROWGUIDCOL NOT NULL CONSTRAINT [DF_EmployeeFinancials_rowguid] DEFAULT (NEWID()),
+    [ModifiedDate] [datetime] NOT NULL CONSTRAINT [DF_EmployeeFinancials_ModifiedDate] DEFAULT (GETDATE()),
+    CONSTRAINT [PK_EmployeeFinancials_BusinessEntityID_EffectiveDate]
+        PRIMARY KEY CLUSTERED ([BusinessEntityID], [EffectiveDate]),
+    CONSTRAINT [FK_EmployeeFinancials_Employee_BusinessEntityID] FOREIGN KEY ([BusinessEntityID])
+        REFERENCES [HumanResources].[Employee] ([BusinessEntityID]),
+    CONSTRAINT [FK_EmployeeFinancials_Currency_CurrencyCode] FOREIGN KEY ([CurrencyCode])
+        REFERENCES [Sales].[Currency] ([CurrencyCode]),
+    CONSTRAINT [CK_EmployeeFinancials_BaseSalary] CHECK ([BaseSalary] > 0),
+    CONSTRAINT [CK_EmployeeFinancials_BonusTarget] CHECK ([BonusTarget] >= 0),
+    CONSTRAINT [CK_EmployeeFinancials_PayFrequency] CHECK ([PayFrequency] IN (1, 2))
 );
