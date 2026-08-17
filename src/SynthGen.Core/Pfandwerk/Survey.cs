@@ -48,12 +48,19 @@ public sealed class Surveyor
 
     private TableSurvey SurveyTable(IDbConnection conn, string table)
     {
-        var rows = conn.ExecuteScalar<int>($"SELECT COUNT(*) FROM {table}");
+        // `qualified` is the only form that reaches SQL; `canonical` is the only form that
+        // is reported or matched against a rule. Keeping them apart means a caller may pass
+        // `[Sales].[Currency]` or `Sales.Currency` and still match a rule written either way.
+        var (schema, name) = SplitName(table);
+        var canonical = $"{schema}.{name}";
+        var qualified = $"{Q(schema)}.{Q(name)}";
+
+        var rows = conn.ExecuteScalar<int>($"SELECT COUNT(*) FROM {qualified}");
         var columns = new List<ColumnSurvey>();
 
         var keys = PrimaryKeyColumns(conn, table);
 
-        foreach (var (name, type, nullable) in ListColumns(conn, table))
+        foreach (var (column, type, nullable) in ListColumns(conn, table))
         {
             // Binary columns have no useful distribution and can be enormous.
             if (type.Contains("binary", StringComparison.OrdinalIgnoreCase) ||
@@ -61,23 +68,32 @@ public sealed class Surveyor
                 type.Contains("image", StringComparison.OrdinalIgnoreCase)) continue;
 
             var nulls = rows == 0 ? 0 : conn.ExecuteScalar<int>(
-                $"SELECT COUNT(*) FROM {table} WHERE {name} IS NULL");
+                $"SELECT COUNT(*) FROM {qualified} WHERE {Q(column)} IS NULL");
             var distinct = rows == 0 ? 0 : conn.ExecuteScalar<int>(
-                $"SELECT COUNT(*) FROM (SELECT DISTINCT {name} FROM {table} WHERE {name} IS NOT NULL) d");
+                $"SELECT COUNT(*) FROM (SELECT DISTINCT {Q(column)} FROM {qualified} " +
+                $"WHERE {Q(column)} IS NOT NULL) d");
 
-            var top = rows == 0 ? new List<ValueCount>() : TopValues(conn, table, name);
+            var top = rows == 0 ? new List<ValueCount>() : TopValues(conn, qualified, column);
             var rate = rows == 0 ? 0 : (double)nulls / rows;
             var covered = _rules.FirstOrDefault(r =>
-                string.Equals(r.Table, table, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(r.Column, name, StringComparison.OrdinalIgnoreCase))?.Id;
+                string.Equals(r.Table, canonical, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(r.Column, column, StringComparison.OrdinalIgnoreCase))?.Id;
 
-            var isKey = keys.Contains(name, StringComparer.OrdinalIgnoreCase);
-            columns.Add(new ColumnSurvey(name, type, nullable, isKey, nulls, Math.Round(rate, 4),
+            var isKey = keys.Contains(column, StringComparer.OrdinalIgnoreCase);
+            columns.Add(new ColumnSurvey(column, type, nullable, isKey, nulls, Math.Round(rate, 4),
                 distinct, top, covered, Signals(rows, nulls, rate, distinct, nullable, isKey, top)));
         }
 
-        return new TableSurvey(table, rows, columns);
+        return new TableSurvey(canonical, rows, columns);
     }
+
+    /// <summary>
+    /// Bracket quoting, which SQL Server and SQLite both accept. The survey interpolates
+    /// names it read from the catalogue, and one of them being a reserved word — the
+    /// AdventureWorks sample has SalesTerritory.Group — was a syntax error that aborted the
+    /// whole survey, not merely the column or the table it came from.
+    /// </summary>
+    private static string Q(string identifier) => $"[{identifier.Replace("]", "]]")}]";
 
     /// <summary>
     /// Neutral observations an agent can draft from and a human can overrule. Each is a
@@ -140,7 +156,7 @@ public sealed class Surveyor
         var (schema, name) = SplitName(table);
         if (_db.Provider == Provider.Sqlite)
         {
-            return conn.Query($"PRAGMA {schema}.table_info({name})")
+            return conn.Query($"PRAGMA {Q(schema)}.table_info({Q(name)})")
                 .Cast<IDictionary<string, object?>>()
                 .Where(r => Convert.ToInt32(r["pk"]) > 0)
                 .Select(r => (string)r["name"]!)
@@ -165,14 +181,35 @@ public sealed class Surveyor
 
     // ---------------------------------------------------------------- provider SQL
 
-    private IEnumerable<string> ListTables(IDbConnection conn) =>
-        _db.Provider == Provider.Sqlite
-            ? conn.Query<string>(
-                "SELECT 'dbo.' || name FROM dbo.sqlite_master WHERE type = 'table' " +
-                "AND name NOT LIKE 'sqlite_%' ORDER BY name")
-            : conn.Query<string>(
+    private IEnumerable<string> ListTables(IDbConnection conn)
+    {
+        if (_db.Provider != Provider.Sqlite)
+            return conn.Query<string>(
                 "SELECT TABLE_SCHEMA + '.' + TABLE_NAME FROM INFORMATION_SCHEMA.TABLES " +
                 "WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_SCHEMA, TABLE_NAME");
+
+        // On SQLite each SQL Server schema is a separately ATTACHed file, so a multi-schema
+        // fixture keeps nothing in `dbo` — the AdventureWorks sample has its tables in
+        // Person, Production and Sales. Asking only `dbo` reported no tables whatsoever,
+        // and an empty survey is the worst answer this command can give: survey.json is the
+        // sole source of facts the drafting agent is allowed, so it would read a valid,
+        // empty picture and correctly conclude there is nothing to draft.
+        //
+        // `main` is excluded because a rule addresses a table as schema.table and nothing
+        // is ever attached as `main`; a table sitting there is unreachable by any rule.
+        var schemas = conn.Query("PRAGMA database_list")
+            .Cast<IDictionary<string, object?>>()
+            .Select(r => (string)r["name"]!)
+            .Where(s => !string.Equals(s, "main", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(s, "temp", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => s, StringComparer.OrdinalIgnoreCase);
+
+        return schemas.SelectMany(s => conn.Query<string>(
+                $"SELECT name FROM {Q(s)}.sqlite_master WHERE type = 'table' " +
+                "AND name NOT LIKE 'sqlite_%' ORDER BY name")
+            .Select(t => $"{s}.{t}"))
+            .ToList();
+    }
 
     private IEnumerable<(string Name, string Type, bool Nullable)> ListColumns(
         IDbConnection conn, string table)
@@ -181,7 +218,8 @@ public sealed class Surveyor
 
         if (_db.Provider == Provider.Sqlite)
         {
-            foreach (IDictionary<string, object?> r in conn.Query($"PRAGMA {schema}.table_info({name})"))
+            foreach (IDictionary<string, object?> r in conn.Query(
+                $"PRAGMA {Q(schema)}.table_info({Q(name)})"))
                 yield return ((string)r["name"]!, (string)(r["type"] ?? "")!,
                               Convert.ToInt32(r["notnull"]) == 0);
             yield break;
@@ -197,13 +235,15 @@ public sealed class Surveyor
         }
     }
 
-    private List<ValueCount> TopValues(IDbConnection conn, string table, string column)
+    /// <summary><paramref name="qualified"/> is already bracket-quoted; the column is not.</summary>
+    private List<ValueCount> TopValues(IDbConnection conn, string qualified, string column)
     {
+        var c = Q(column);
         var sql = _db.Provider == Provider.Sqlite
-            ? $"SELECT CAST({column} AS TEXT) AS Value, COUNT(*) AS Count FROM {table} " +
-              $"WHERE {column} IS NOT NULL GROUP BY {column} ORDER BY COUNT(*) DESC LIMIT {TopValueCount}"
-            : $"SELECT TOP {TopValueCount} CAST({column} AS nvarchar(200)) AS Value, COUNT(*) AS Count " +
-              $"FROM {table} WHERE {column} IS NOT NULL GROUP BY {column} ORDER BY COUNT(*) DESC";
+            ? $"SELECT CAST({c} AS TEXT) AS Value, COUNT(*) AS Count FROM {qualified} " +
+              $"WHERE {c} IS NOT NULL GROUP BY {c} ORDER BY COUNT(*) DESC LIMIT {TopValueCount}"
+            : $"SELECT TOP {TopValueCount} CAST({c} AS nvarchar(200)) AS Value, COUNT(*) AS Count " +
+              $"FROM {qualified} WHERE {c} IS NOT NULL GROUP BY {c} ORDER BY COUNT(*) DESC";
 
         try { return conn.Query<ValueCount>(sql).ToList(); }
         catch (DbException ex)
@@ -211,7 +251,7 @@ public sealed class Surveyor
             // A type that will not cast to text should not fail the whole survey — but it
             // must not be silent either. Swallowing everything here once hid the fact that
             // this method returned nothing at all for every column.
-            Console.Error.WriteLine($"warn: no value distribution for {table}.{column}: {ex.Message}");
+            Console.Error.WriteLine($"warn: no value distribution for {qualified}.{column}: {ex.Message}");
             return new List<ValueCount>();
         }
     }

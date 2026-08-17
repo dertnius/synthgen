@@ -1,5 +1,6 @@
 using Dapper;
 using Pfandwerk;
+using SynthGen.Core.Sqlite;
 
 namespace Pfandwerk.Tests;
 
@@ -120,6 +121,72 @@ public sealed class SurveyTests : IDisposable
 
         Assert.Equal("HOU-001", columns.Single(c => c.Name == "EnergyClass").CoveredByRule);
         Assert.Null(columns.Single(c => c.Name == "Legacy").CoveredByRule);
+    }
+
+    [SqliteFact]
+    public void Surveys_a_column_named_like_a_reserved_word()
+    {
+        // AdventureWorks' Sales.SalesTerritory has a column called Group. Unquoted, it is a
+        // syntax error, and one such column aborted the entire survey — every other table
+        // included — rather than degrading to a missing distribution for that column.
+        var db = Db();
+        using (var seed = db.OpenTarget())
+        {
+            seed.Execute("CREATE TABLE dbo.Territory (TerritoryId INTEGER NOT NULL PRIMARY KEY, " +
+                         "[Group] TEXT NULL, [Order] TEXT NULL)");
+            seed.Execute("INSERT INTO dbo.Territory VALUES (1, 'North', NULL), (2, NULL, 'x')");
+        }
+
+        var columns = new Surveyor(db, new List<GapRule>()).Survey(null)
+            .Tables.Single(t => t.Table == "dbo.Territory").Columns;
+
+        var group = columns.Single(c => c.Name == "Group");
+        Assert.Equal(1, group.Nulls);
+        Assert.Contains(group.TopValues, v => v.Value == "North");   // the distribution really ran
+    }
+
+    [SqliteFact]
+    public void Finds_tables_in_every_attached_schema()
+    {
+        // Each SQL Server schema is its own attached file, so a multi-schema fixture keeps
+        // nothing in dbo. Enumerating only dbo returned an empty survey for the entire
+        // AdventureWorks sample — a valid document saying, wrongly, that there is nothing
+        // to look at.
+        var path = Path.Combine(_dir, "survey.db");
+
+        // The shard file has to exist before the context is built: DbContext discovers the
+        // schemas to attach from the files already sitting next to the database.
+        using (var seed = new SqliteConnectionFactory(path, new[] { "dbo", "Sales" }).Open())
+        {
+            seed.Execute("CREATE TABLE Sales.Currency (" +
+                         "CurrencyCode TEXT NOT NULL PRIMARY KEY, Name TEXT NULL)");
+            seed.Execute("INSERT INTO Sales.Currency VALUES ('EUR', NULL), ('USD', 'US Dollar')");
+        }
+
+        var rule = new GapRule
+        {
+            Id = "CUR-001", Table = "Sales.Currency", Key = "CurrencyCode", Column = "Name",
+            Kind = "ephemeral", Gap = "Name IS NULL", Fix = "dataset.energy-classes",
+            Threshold = 10, Reason = "r",
+        };
+        var survey = new Surveyor(new DbContext(Provider.Sqlite, path, path),
+                                  new List<GapRule> { rule }).Survey(null);
+
+        var currency = survey.Tables.Single(t => t.Table == "Sales.Currency");
+        Assert.Equal(2, currency.Rows);
+        // The reported name has to round-trip to the rule's own `table`, or coverage is
+        // silently lost and the agent drafts a second rule for a column that has one.
+        Assert.Equal("CUR-001", currency.Columns.Single(c => c.Name == "Name").CoveredByRule);
+    }
+
+    [SqliteFact]
+    public void Accepts_a_bracket_quoted_table_name()
+    {
+        var survey = new Surveyor(Seed(), new List<GapRule>()).Survey(new[] { "[dbo].[House]" });
+
+        // Normalised on the way out, so --tables "[dbo].[House]" and "dbo.House" agree.
+        Assert.Equal("dbo.House", survey.Tables.Single().Table);
+        Assert.Equal(20, survey.Tables.Single().Rows);
     }
 
     [SqliteFact]
