@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AdventureWorks E2E dashboard</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb;
+  --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --border: rgba(11,11,11,0.10);
+  --good: #006300; --warning: #fab219; --critical: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19;
+    --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --border: rgba(255,255,255,0.10);
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--page); color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 1080px; margin: 0 auto; padding: 32px 20px 64px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 16px; margin: 36px 0 10px; }
+.sub, .tsub { color: var(--muted); font-size: 13px; }
+.meta { color: var(--ink-2); font-size: 13px; margin-top: 6px; }
+a { color: inherit; }
+.mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.92em; }
+.pipeline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 20px 0 4px; color: var(--ink-2); font-size: 13px; }
+.pipeline .step { border: 1px solid var(--border); background: var(--surface); border-radius: 6px; padding: 3px 10px; }
+.pipeline .arrow { color: var(--muted); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-top: 16px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.tlabel { color: var(--ink-2); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+.tvalue { margin: 6px 0 2px; font-size: 20px; }
+.tvalue .num { font-size: 26px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; }
+.dot { font-size: 0.85em; }
+.dot.good { color: var(--good); }
+.dot.warning { color: var(--warning); }
+.dot.critical { color: var(--critical); }
+.dot.missing { color: var(--muted); }
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 12px; border-top: 1px solid var(--grid); vertical-align: top; }
+thead th { border-top: none; color: var(--ink-2); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+.num-cell { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.phase { color: var(--ink-2); font-size: 12px; white-space: nowrap; }
+details { margin-top: 4px; }
+summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+details pre { background: var(--page); border: 1px solid var(--grid); border-radius: 6px; padding: 10px; overflow-x: auto; font-size: 12px; max-height: 320px; }
+footer { margin-top: 40px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+<h1>AdventureWorks E2E dashboard</h1>
+<div class="sub">Every artifact from the pfandwerk run: generate &rarr; corrupt &rarr; plan &rarr; approve &rarr; apply &rarr; verify &rarr; report. The page reflects the second, identity-reuse pass &mdash; the same artifacts directory is written by both passes.</div>
+<div class="meta">run <span class="mono">20260817T052819Z-657e</span> &middot; approved by <span class="mono">runner</span> at 2026-08-17 05:28:21 UTC &middot; commit <a class="mono" href="https://github.com/dertnius/synthgen/commit/3eed5e4d18acc4f7d3f826db2db06fff840766e3">3eed5e4</a> &middot; branch <span class="mono">claude/employee-financials-table-wadzwo</span> &middot; <a href="https://github.com/dertnius/synthgen/actions/runs/31997933832">workflow run</a> (full evidence bundle under Artifacts)</div>
+
+<div class="pipeline">
+  <span class="step">GUARD</span><span class="arrow">&rarr;</span>
+  <span class="step">SCAN</span><span class="arrow">&rarr;</span>
+  <span class="step">PLAN</span><span class="arrow">&rarr;</span>
+  <span class="step">GATE</span><span class="arrow">&rarr;</span>
+  <span class="step">APPLY</span><span class="arrow">&rarr;</span>
+  <span class="step">VERIFY</span><span class="arrow">&rarr;</span>
+  <span class="step">REPORT</span>
+</div>
+
+<div class="tiles">
+<div class="tile"><div class="tlabel">L1 gap re-scan</div><div class="tvalue"><span class="chip"><span class="dot good">&#10003;</span>clean</span></div><div class="tsub">no planned gap still open</div></div>
+<div class="tile"><div class="tlabel">L2 invariants</div><div class="tvalue"><span class="chip"><span class="dot good">&#10003;</span>pass</span></div><div class="tsub">3 of 3 passed</div></div>
+<div class="tile"><div class="tlabel">L3 consumer checks</div><div class="tvalue"><span class="chip"><span class="dot good">&#10003;</span>pass</span></div><div class="tsub">7 of 7 passed</div></div>
+<div class="tile"><div class="tlabel">Report audit</div><div class="tvalue"><span class="chip"><span class="dot warning">&#9888;</span>fallback</span></div><div class="tsub">report.md audited against facts.json</div></div>
+<div class="tile"><div class="tlabel">Patches applied</div><div class="tvalue"><span class="num">23</span></div><div class="tsub">rows in the append-only ledger</div></div>
+<div class="tile"><div class="tlabel">Rules planned</div><div class="tvalue"><span class="num">4</span></div><div class="tsub">gap rules in plan.json</div></div>
+</div>
+
+<h2>Verification checks</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Layer</th><th>Check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>invariant</td><td class="mono">AW-PROD-001.invariant</td><td><span class="chip"><span class="dot good">&#10003;</span>pass</span></td></tr>
+<tr><td>invariant</td><td class="mono">AW-ORDER-001.invariant</td><td><span class="chip"><span class="dot good">&#10003;</span>pass</span></td></tr>
+<tr><td>invariant</td><td class="mono">AW-CUSTOMER-001.invariant</td><td><span class="chip"><span class="dot good">&#10003;</span>pass</span></td></tr>
+<tr><td>consumer</td><td class="mono">AdventureWorks.ProductColorSentinelAbsent</td><td><span class="chip"><span class="dot good">&#10003;</span>pass</span></td></tr>
+<tr><td>consumer</td><td class="mono">AdventureWorks.OrderStatusContract</td><td><span class="chip"><span class="dot good">&#10003;</span>pass</span></td></tr>
+<tr><td>consumer</td><td class="mono">AdventureWorks.CustomerPersonPresent</td><td><span class="chip"><span class="dot good">&#10003;</span>pass</span></td></tr>
+<tr><td>consumer</td><td class="mono">AdventureWorks.CustomerPersonOrphans</td><td><span class="chip"><span class="dot good">&#10003;</span>pass</span></td></tr>
+<tr><td>consumer</td><td class="mono">AdventureWorks.CurrencyNamesPresent</td><td><span class="chip"><span class="dot good">&#10003;</span>pass</span></td></tr>
+<tr><td>consumer</td><td class="mono">AdventureWorks.ProductRowCountStable</td><td><span class="chip"><span class="dot good">&#10003;</span>pass</span></td></tr>
+<tr><td>consumer</td><td class="mono">AdventureWorks.CustomerRowCountStable</td><td><span class="chip"><span class="dot good">&#10003;</span>pass</span></td></tr>
+</tbody></table></div>
+
+<h2>Gap rules</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Rule</th><th>Table</th><th>Column</th><th>Kind</th><th>Status</th><th>Patched</th><th>Skipped</th></tr></thead>
+<tbody>
+<tr><td class="mono">AW-PROD-001</td><td class="mono">Production.Product</td><td class="mono">Color</td><td>ephemeral</td><td><span class="chip"><span class="dot good">&#10003;</span>OK</span></td><td class="num-cell">3</td><td class="num-cell">0</td></tr>
+<tr><td class="mono">AW-ORDER-001</td><td class="mono">Sales.SalesOrderHeader</td><td class="mono">Status</td><td>ephemeral</td><td><span class="chip"><span class="dot good">&#10003;</span>OK</span></td><td class="num-cell">3</td><td class="num-cell">0</td></tr>
+<tr><td class="mono">CUR-001</td><td class="mono">Sales.Currency</td><td class="mono">Name</td><td>derived</td><td><span class="chip"><span class="dot good">&#10003;</span>OK</span></td><td class="num-cell">14</td><td class="num-cell">1</td></tr>
+<tr><td class="mono">AW-CUSTOMER-001</td><td class="mono">Sales.Customer</td><td class="mono">PersonID</td><td>identity</td><td><span class="chip"><span class="dot good">&#10003;</span>OK</span></td><td class="num-cell">3</td><td class="num-cell">0</td></tr>
+</tbody></table></div>
+
+<h2>Run artifacts</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Phase</th><th>File</th><th>Size</th><th>What it is</th></tr></thead>
+<tbody>
+<tr><td><span class="phase">SCAN + PLAN</span></td><td class="mono"><a href="artifacts/plan.json">plan.json</a></td><td class="num-cell">6.9 KB</td><td>Full patch plan: every rule, the gaps found, and the exact values proposed per row.<details><summary>preview</summary><pre>{
+  &quot;runId&quot;: &quot;20260817T052819Z-657e&quot;,
+  &quot;rulesSha&quot;: &quot;104ed1e43e33efef8fa8487efc138ed9f425711d5b2c64a778b1a8de596be3f5&quot;,
+  &quot;rules&quot;: [
+    {
+      &quot;id&quot;: &quot;AW-PROD-001&quot;,
+      &quot;table&quot;: &quot;Production.Product&quot;,
+      &quot;column&quot;: &quot;Color&quot;,
+      &quot;kind&quot;: &quot;ephemeral&quot;,
+      &quot;status&quot;: &quot;OK&quot;,
+      &quot;count&quot;: 3,
+      &quot;threshold&quot;: 10,
+      &quot;reason&quot;: &quot;The sample corruption job uses X9 as an impossible product-color sentinel. Consumers group products by the published color vocabulary and reject the sentinel.&quot;,
+      &quot;patches&quot;: [
+        {
+          &quot;key&quot;: {
+            &quot;ProductID&quot;: &quot;1&quot;
+          },
+          &quot;value&quot;: &quot;Multi&quot;
+        },
+        {
+          &quot;key&quot;: {
+            &quot;ProductID&quot;: &quot;2&quot;
+          },
+          &quot;value&quot;: &quot;Silver&quot;
+        },
+        {
+          &quot;key&quot;: {
+            &quot;ProductID&quot;: &quot;3&quot;
+          },
+          &quot;value&quot;: &quot;Yellow&quot;
+        }
+      ],
+      &quot;skipped&quot;: [],
+      &quot;newIdentities&quot;: [],
+      &quot;coverage&quot;: {
+        &quot;uncoveredViolations&quot;: 0,
+        &quot;uncoveredKeys&quot;: [],
+        &quot;selectedButValid&quot;: 0,
+        &quot;selectedButValidKeys&quot;: [],
+        &quot;indeterminate&quot;: 0,
+        &quot;indeterminateKeys&quot;: []
+      }
+    },
+    {
+      &quot;id&quot;: &quot;AW-ORDER-001&quot;,
+      &quot;table&quot;: &quot;Sales.SalesOrderHeader&quot;,
+      &quot;column&quot;: &quot;Status&quot;,
+      &quot;kind&quot;: &quot;ephemeral&quot;,
+      &quot;status&quot;: &quot;OK&quot;,
+      &quot;count&quot;: 3,
+      &quot;threshold&quot;: 10,
+      &quot;reason&quot;: &quot;The sample corruption job writes status zero. The AdventureWorks consumer contract accepts only the five statuses generated by this subset.&quot;,
+      &quot;patches&quot;: [
+        {
+          &quot;key&quot;: {
+            &quot;SalesOrderID&quot;: &quot;1&quot;
+          },
+          &quot;value&quot;: &quot;5&quot;
+        },
+        {
+          &quot;key&quot;: {
+            &quot;SalesOrderID&quot;: &quot;2&quot;
+          },
+          &quot;value&quot;: &quot;5&quot;
+        },
+        {
+          &quot;key&quot;: {
+            &quot;SalesOrderID&quot;: &quot;3&quot;
+          },
+          &quot;value&quot;: &quot;5&quot;
+        }
+      ],
+      &quot;skipped&quot;: [],
+      &quot;newIdentities&quot;: [],
+      &quot;coverage&quot;: {
+        &quot;uncoveredViolations&quot;: 0,
+        &quot;uncoveredKeys&quot;: [],
+        &quot;selectedButValid&quot;: 0,
+        &quot;selectedButValidKeys&quot;: [],
+        &quot;indeterminate&quot;: 0,
+        &quot;indeterminateKeys&quot;: []
+      }
+    },
+    {
+      &quot;id&quot;: &quot;CUR-001&quot;,
+      &quot;table&quot;: &quot;Sales.Currency&quot;,
+      &quot;column&quot;: &quot;Name&quot;,
+      &quot;kind&quot;: &quot;derived&quot;,
+      &quot;status&quot;: &quot;OK&quot;,
+      &quot;count&quot;: 15,
+      &quot;threshold&quot;: 20,
+      &quot;reason&quot;: &quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;,
+      &quot;patches&quot;: [
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;AUD&quot;
+          },
+          &quot;value&quot;: &quot;Australian Dollar&quot;,
+          &quot;inputs&quot;: {
+            &quot;CurrencyCode&quot;: &quot;AUD&quot;
+          }
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;BRL&quot;
+          },
+          &quot;value&quot;: &quot;Brazilian Real&quot;,
+          &quot;inputs&quot;: {
+            &quot;CurrencyCode&quot;: &quot;BRL&quot;
+          }
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;CAD&quot;
+          },
+          &quot;value&quot;: &quot;Canadian Dollar&quot;,
+          &quot;inputs&quot;: {
+            &quot;CurrencyCode&quot;: &quot;CAD&quot;
+          }
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;CHF&quot;
+          },
+          &quot;value&quot;: &quot;Swiss Franc&quot;,
+          &quot;inputs&quot;: {
+            &quot;CurrencyCode&quot;: &quot;CHF&quot;
+          }
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;CNY&quot;
+          },
+          &quot;value&quot;: &quot;Chinese Yuan&quot;,
+          &quot;inputs&quot;: {
+            &quot;CurrencyCode&quot;: &quot;CNY&quot;
+          }
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;CZK&quot;
+          },
+          &quot;value&quot;: &quot;Czech Koruna&quot;,
+          &quot;inputs&quot;: {
+            &quot;CurrencyCode&quot;: &quot;CZK&quot;
+          }
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;DKK&quot;
+          },
+          &quot;value&quot;: &quot;Danish Krone&quot;,
+          &quot;inputs&quot;: {
+            &quot;CurrencyCode&quot;: &quot;DKK&quot;
+          }
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;EUR&quot;
+          },
+          &quot;value&quot;: &quot;Euro&quot;,
+          &quot;inputs&quot;: {
+            &quot;CurrencyCode&quot;: &quot;EUR&quot;
+          }
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;GBP&quot;
+          },
+          &quot;value&quot;: &quot;British Pound&quot;,
+          &quot;inputs&quot;: {
+            &quot;CurrencyCode&quot;: &quot;GBP&quot;
+          }
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;HKD&quot;
+          },
+          &quot;value&quot;: &quot;Hong Kong Dollar&quot;,
+          &quot;inputs&quot;: {
+            &quot;CurrencyCode&quot;: &quot;HKD&quot;
+          }
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;HUF&quot;
+          },
+          &quot;value&quot;: &quot;Hungarian Forint&quot;,
+          &quot;inputs&quot;: {
+            &quot;CurrencyCode&quot;: &quot;HUF&quot;
+          }
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;INR&quot;
+          },
+          &quot;value&quot;: &quot;Indian Rupee&quot;,
+          &quot;inputs&quot;: {
+            &quot;CurrencyCode&quot;: &quot;INR&quot;
+          }
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;JPY&quot;
+          },
+          &quot;value&quot;: &quot;Japanese Yen&quot;,
+          &quot;inputs&quot;: {
+            &quot;CurrencyCode&quot;: &quot;JPY&quot;
+          }
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;MXN&quot;
+          },
+          &quot;value&quot;: &quot;Mexican Peso&quot;,
+          &quot;inputs&quot;: {
+            &quot;CurrencyCode&quot;: &quot;MXN&quot;
+          }
+        }
+      ],
+      &quot;skipped&quot;: [
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;ZZZ&quot;
+          },
+          &quot;why&quot;: &quot;input (CurrencyCode \u0027ZZZ\u0027) matches no row of dataset \u0027currencies\u0027&quot;,
+          &quot;policy&quot;: &quot;onMissingInput: block&quot;
+        }
+      ],
+      &quot;newIdentities&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;AW-CUSTOMER-001&quot;,
+      &quot;table&quot;: &quot;Sales.Customer&quot;,
+      &quot;column&quot;: &quot;PersonID&quot;,
+      &quot;kind&quot;: &quot;identity&quot;,
+      &quot;status&quot;: &quot;OK&quot;,
+      &quot;count&quot;: 3,
+      &quot;threshold&quot;: 500,
+      &quot;reason&quot;: &quot;A customer without a person reference cannot be joined by the downstream customer consumer. Generated references are permanent ledger identities and must be reused after an upstream value is cleared.&quot;,
+      &quot;patches&quot;: [
+        {
+          &quot;key&quot;: {
+            &quot;CustomerID&quot;: &quot;1&quot;
+          },
+          &quot;value&quot;: &quot;563&quot;
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CustomerID&quot;: &quot;2&quot;
+          },
+          &quot;value&quot;: &quot;588&quot;
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CustomerID&quot;: &quot;3&quot;
+          },
+          &quot;value&quot;: &quot;784&quot;
+        }
+      ],
+      &quot;skipped&quot;: [],
+      &quot;newIdentities&quot;: [
+        {
+          &quot;key&quot;: {
+            &quot;CustomerID&quot;: &quot;1&quot;
+          },
+          &quot;value&quot;: &quot;563&quot;
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CustomerID&quot;: &quot;2&quot;
+          },
+          &quot;value&quot;: &quot;588&quot;
+        },
+        {
+          &quot;key&quot;: {
+            &quot;CustomerID&quot;: &quot;3&quot;
+          },
+          &quot;value&quot;: &quot;784&quot;
+        }
+      ],
+      &quot;coverage&quot;: {
+        &quot;uncoveredViolations&quot;: 0,
+        &quot;uncoveredKeys&quot;: [],
+        &quot;selectedButValid&quot;: 0,
+        &quot;selectedButValidKeys&quot;: [],
+        &quot;indeterminate&quot;: 0,
+        &quot;indeterminateKeys&quot;: []
+      }
+    }
+  ]
+}
+</pre></details></td></tr>
+<tr><td><span class="phase">SCAN</span></td><td class="mono"><a href="artifacts/baseline.json">baseline.json</a></td><td class="num-cell">1.2 KB</td><td>Invariant results before patching — red here is the deliberate corruption being confirmed.<details><summary>preview</summary><pre>{
+  &quot;runId&quot;: &quot;20260817T052819Z-657e&quot;,
+  &quot;invariants&quot;: [
+    {
+      &quot;name&quot;: &quot;AW-PROD-001.invariant&quot;,
+      &quot;passed&quot;: false,
+      &quot;detail&quot;: &quot;expected 0, got 3&quot;
+    },
+    {
+      &quot;name&quot;: &quot;AW-ORDER-001.invariant&quot;,
+      &quot;passed&quot;: false,
+      &quot;detail&quot;: &quot;expected 0, got 3&quot;
+    },
+    {
+      &quot;name&quot;: &quot;AW-CUSTOMER-001.invariant&quot;,
+      &quot;passed&quot;: false,
+      &quot;detail&quot;: &quot;expected 0, got 3&quot;
+    }
+  ],
+  &quot;consumer&quot;: [
+    {
+      &quot;name&quot;: &quot;AdventureWorks.ProductColorSentinelAbsent&quot;,
+      &quot;passed&quot;: false,
+      &quot;detail&quot;: &quot;expected 0, got 3&quot;
+    },
+    {
+      &quot;name&quot;: &quot;AdventureWorks.OrderStatusContract&quot;,
+      &quot;passed&quot;: false,
+      &quot;detail&quot;: &quot;expected 0, got 3&quot;
+    },
+    {
+      &quot;name&quot;: &quot;AdventureWorks.CustomerPersonPresent&quot;,
+      &quot;passed&quot;: false,
+      &quot;detail&quot;: &quot;expected 0, got 3&quot;
+    },
+    {
+      &quot;name&quot;: &quot;AdventureWorks.CustomerPersonOrphans&quot;,
+      &quot;passed&quot;: true
+    },
+    {
+      &quot;name&quot;: &quot;AdventureWorks.CurrencyNamesPresent&quot;,
+      &quot;passed&quot;: false,
+      &quot;detail&quot;: &quot;expected 0, got 14&quot;
+    },
+    {
+      &quot;name&quot;: &quot;AdventureWorks.ProductRowCountStable&quot;,
+      &quot;passed&quot;: true
+    },
+    {
+      &quot;name&quot;: &quot;AdventureWorks.CustomerRowCountStable&quot;,
+      &quot;passed&quot;: true
+    }
+  ]
+}
+</pre></details></td></tr>
+<tr><td><span class="phase">GATE</span></td><td class="mono"><a href="artifacts/plan.approved">plan.approved</a></td><td class="num-cell">179 B</td><td>Approval receipt: SHA-256 of the approved plan, approver, and timestamp.<details><summary>preview</summary><pre>{
+  &quot;sha256&quot;: &quot;ad9214c080085cf9752a8e55291ac368968e57ecd180b00b905d19bf2fbf1471&quot;,
+  &quot;osUser&quot;: &quot;runner&quot;,
+  &quot;gitEmail&quot;: &quot;runner&quot;,
+  &quot;timestampUtc&quot;: &quot;2026-08-17T05:28:21.4473044Z&quot;
+}
+</pre></details></td></tr>
+<tr><td><span class="phase">APPLY</span></td><td class="mono"><a href="artifacts/patches.jsonl">patches.jsonl</a></td><td class="num-cell">10.2 KB</td><td>Append-only ledger of applied cell patches: one line per cell, old value to new value.<details><summary>preview</summary><pre>{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5485585Z&quot;,&quot;rule&quot;:&quot;AW-PROD-001&quot;,&quot;id&quot;:{&quot;ProductID&quot;:&quot;1&quot;},&quot;col&quot;:&quot;Color&quot;,&quot;old&quot;:&quot;X9&quot;,&quot;new&quot;:&quot;Multi&quot;,&quot;reason&quot;:&quot;The sample corruption job uses X9 as an impossible product-color sentinel. Consumers group products by the published color vocabulary and reject the sentinel.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5547444Z&quot;,&quot;rule&quot;:&quot;AW-PROD-001&quot;,&quot;id&quot;:{&quot;ProductID&quot;:&quot;2&quot;},&quot;col&quot;:&quot;Color&quot;,&quot;old&quot;:&quot;X9&quot;,&quot;new&quot;:&quot;Silver&quot;,&quot;reason&quot;:&quot;The sample corruption job uses X9 as an impossible product-color sentinel. Consumers group products by the published color vocabulary and reject the sentinel.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5564788Z&quot;,&quot;rule&quot;:&quot;AW-PROD-001&quot;,&quot;id&quot;:{&quot;ProductID&quot;:&quot;3&quot;},&quot;col&quot;:&quot;Color&quot;,&quot;old&quot;:&quot;X9&quot;,&quot;new&quot;:&quot;Yellow&quot;,&quot;reason&quot;:&quot;The sample corruption job uses X9 as an impossible product-color sentinel. Consumers group products by the published color vocabulary and reject the sentinel.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5594486Z&quot;,&quot;rule&quot;:&quot;AW-ORDER-001&quot;,&quot;id&quot;:{&quot;SalesOrderID&quot;:&quot;1&quot;},&quot;col&quot;:&quot;Status&quot;,&quot;old&quot;:&quot;0&quot;,&quot;new&quot;:&quot;5&quot;,&quot;reason&quot;:&quot;The sample corruption job writes status zero. The AdventureWorks consumer contract accepts only the five statuses generated by this subset.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5612340Z&quot;,&quot;rule&quot;:&quot;AW-ORDER-001&quot;,&quot;id&quot;:{&quot;SalesOrderID&quot;:&quot;2&quot;},&quot;col&quot;:&quot;Status&quot;,&quot;old&quot;:&quot;0&quot;,&quot;new&quot;:&quot;5&quot;,&quot;reason&quot;:&quot;The sample corruption job writes status zero. The AdventureWorks consumer contract accepts only the five statuses generated by this subset.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5630542Z&quot;,&quot;rule&quot;:&quot;AW-ORDER-001&quot;,&quot;id&quot;:{&quot;SalesOrderID&quot;:&quot;3&quot;},&quot;col&quot;:&quot;Status&quot;,&quot;old&quot;:&quot;0&quot;,&quot;new&quot;:&quot;5&quot;,&quot;reason&quot;:&quot;The sample corruption job writes status zero. The AdventureWorks consumer contract accepts only the five statuses generated by this subset.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5654653Z&quot;,&quot;rule&quot;:&quot;CUR-001&quot;,&quot;id&quot;:{&quot;CurrencyCode&quot;:&quot;AUD&quot;},&quot;col&quot;:&quot;Name&quot;,&quot;new&quot;:&quot;Australian Dollar&quot;,&quot;reason&quot;:&quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5672419Z&quot;,&quot;rule&quot;:&quot;CUR-001&quot;,&quot;id&quot;:{&quot;CurrencyCode&quot;:&quot;BRL&quot;},&quot;col&quot;:&quot;Name&quot;,&quot;new&quot;:&quot;Brazilian Real&quot;,&quot;reason&quot;:&quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5687840Z&quot;,&quot;rule&quot;:&quot;CUR-001&quot;,&quot;id&quot;:{&quot;CurrencyCode&quot;:&quot;CAD&quot;},&quot;col&quot;:&quot;Name&quot;,&quot;new&quot;:&quot;Canadian Dollar&quot;,&quot;reason&quot;:&quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5703348Z&quot;,&quot;rule&quot;:&quot;CUR-001&quot;,&quot;id&quot;:{&quot;CurrencyCode&quot;:&quot;CHF&quot;},&quot;col&quot;:&quot;Name&quot;,&quot;new&quot;:&quot;Swiss Franc&quot;,&quot;reason&quot;:&quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5719617Z&quot;,&quot;rule&quot;:&quot;CUR-001&quot;,&quot;id&quot;:{&quot;CurrencyCode&quot;:&quot;CNY&quot;},&quot;col&quot;:&quot;Name&quot;,&quot;new&quot;:&quot;Chinese Yuan&quot;,&quot;reason&quot;:&quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5735256Z&quot;,&quot;rule&quot;:&quot;CUR-001&quot;,&quot;id&quot;:{&quot;CurrencyCode&quot;:&quot;CZK&quot;},&quot;col&quot;:&quot;Name&quot;,&quot;new&quot;:&quot;Czech Koruna&quot;,&quot;reason&quot;:&quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5750379Z&quot;,&quot;rule&quot;:&quot;CUR-001&quot;,&quot;id&quot;:{&quot;CurrencyCode&quot;:&quot;DKK&quot;},&quot;col&quot;:&quot;Name&quot;,&quot;new&quot;:&quot;Danish Krone&quot;,&quot;reason&quot;:&quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5765581Z&quot;,&quot;rule&quot;:&quot;CUR-001&quot;,&quot;id&quot;:{&quot;CurrencyCode&quot;:&quot;EUR&quot;},&quot;col&quot;:&quot;Name&quot;,&quot;new&quot;:&quot;Euro&quot;,&quot;reason&quot;:&quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5785058Z&quot;,&quot;rule&quot;:&quot;CUR-001&quot;,&quot;id&quot;:{&quot;CurrencyCode&quot;:&quot;GBP&quot;},&quot;col&quot;:&quot;Name&quot;,&quot;new&quot;:&quot;British Pound&quot;,&quot;reason&quot;:&quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5800653Z&quot;,&quot;rule&quot;:&quot;CUR-001&quot;,&quot;id&quot;:{&quot;CurrencyCode&quot;:&quot;HKD&quot;},&quot;col&quot;:&quot;Name&quot;,&quot;new&quot;:&quot;Hong Kong Dollar&quot;,&quot;reason&quot;:&quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5816310Z&quot;,&quot;rule&quot;:&quot;CUR-001&quot;,&quot;id&quot;:{&quot;CurrencyCode&quot;:&quot;HUF&quot;},&quot;col&quot;:&quot;Name&quot;,&quot;new&quot;:&quot;Hungarian Forint&quot;,&quot;reason&quot;:&quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5831554Z&quot;,&quot;rule&quot;:&quot;CUR-001&quot;,&quot;id&quot;:{&quot;CurrencyCode&quot;:&quot;INR&quot;},&quot;col&quot;:&quot;Name&quot;,&quot;new&quot;:&quot;Indian Rupee&quot;,&quot;reason&quot;:&quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5847800Z&quot;,&quot;rule&quot;:&quot;CUR-001&quot;,&quot;id&quot;:{&quot;CurrencyCode&quot;:&quot;JPY&quot;},&quot;col&quot;:&quot;Name&quot;,&quot;new&quot;:&quot;Japanese Yen&quot;,&quot;reason&quot;:&quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5862926Z&quot;,&quot;rule&quot;:&quot;CUR-001&quot;,&quot;id&quot;:{&quot;CurrencyCode&quot;:&quot;MXN&quot;},&quot;col&quot;:&quot;Name&quot;,&quot;new&quot;:&quot;Mexican Peso&quot;,&quot;reason&quot;:&quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5934524Z&quot;,&quot;rule&quot;:&quot;AW-CUSTOMER-001&quot;,&quot;id&quot;:{&quot;CustomerID&quot;:&quot;1&quot;},&quot;col&quot;:&quot;PersonID&quot;,&quot;new&quot;:&quot;563&quot;,&quot;reason&quot;:&quot;A customer without a person reference cannot be joined by the downstream customer consumer. Generated references are permanent ledger identities and must be reused after an upstream value is cleared.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5951493Z&quot;,&quot;rule&quot;:&quot;AW-CUSTOMER-001&quot;,&quot;id&quot;:{&quot;CustomerID&quot;:&quot;2&quot;},&quot;col&quot;:&quot;PersonID&quot;,&quot;new&quot;:&quot;588&quot;,&quot;reason&quot;:&quot;A customer without a person reference cannot be joined by the downstream customer consumer. Generated references are permanent ledger identities and must be reused after an upstream value is cleared.&quot;}
+{&quot;ts&quot;:&quot;2026-08-17T05:28:23.5968088Z&quot;,&quot;rule&quot;:&quot;AW-CUSTOMER-001&quot;,&quot;id&quot;:{&quot;CustomerID&quot;:&quot;3&quot;},&quot;col&quot;:&quot;PersonID&quot;,&quot;new&quot;:&quot;784&quot;,&quot;reason&quot;:&quot;A customer without a person reference cannot be joined by the downstream customer consumer. Generated references are permanent ledger identities and must be reused after an upstream value is cleared.&quot;}
+</pre></details></td></tr>
+<tr><td><span class="phase">VERIFY</span></td><td class="mono"><a href="artifacts/verify.json">verify.json</a></td><td class="num-cell">1.0 KB</td><td>Post-apply verification: L1 gap re-scan, L2 invariants, L3 consumer checks, regressions.<details><summary>preview</summary><pre>{
+  &quot;runId&quot;: &quot;20260817T052819Z-657e&quot;,
+  &quot;l1&quot;: true,
+  &quot;l2&quot;: true,
+  &quot;l3&quot;: true,
+  &quot;regressions&quot;: [],
+  &quot;preexistingReds&quot;: [],
+  &quot;invariants&quot;: [
+    {
+      &quot;name&quot;: &quot;AW-PROD-001.invariant&quot;,
+      &quot;passed&quot;: true
+    },
+    {
+      &quot;name&quot;: &quot;AW-ORDER-001.invariant&quot;,
+      &quot;passed&quot;: true
+    },
+    {
+      &quot;name&quot;: &quot;AW-CUSTOMER-001.invariant&quot;,
+      &quot;passed&quot;: true
+    }
+  ],
+  &quot;consumer&quot;: [
+    {
+      &quot;name&quot;: &quot;AdventureWorks.ProductColorSentinelAbsent&quot;,
+      &quot;passed&quot;: true
+    },
+    {
+      &quot;name&quot;: &quot;AdventureWorks.OrderStatusContract&quot;,
+      &quot;passed&quot;: true
+    },
+    {
+      &quot;name&quot;: &quot;AdventureWorks.CustomerPersonPresent&quot;,
+      &quot;passed&quot;: true
+    },
+    {
+      &quot;name&quot;: &quot;AdventureWorks.CustomerPersonOrphans&quot;,
+      &quot;passed&quot;: true
+    },
+    {
+      &quot;name&quot;: &quot;AdventureWorks.CurrencyNamesPresent&quot;,
+      &quot;passed&quot;: true
+    },
+    {
+      &quot;name&quot;: &quot;AdventureWorks.ProductRowCountStable&quot;,
+      &quot;passed&quot;: true
+    },
+    {
+      &quot;name&quot;: &quot;AdventureWorks.CustomerRowCountStable&quot;,
+      &quot;passed&quot;: true
+    }
+  ],
+  &quot;remainingPlannedGaps&quot;: []
+}
+</pre></details></td></tr>
+<tr><td><span class="phase">REPORT</span></td><td class="mono"><a href="artifacts/facts.json">facts.json</a></td><td class="num-cell">2.7 KB</td><td>Deterministic facts extracted from the run — the ground truth the report is audited against.<details><summary>preview</summary><pre>{
+  &quot;runId&quot;: &quot;20260817T052819Z-657e&quot;,
+  &quot;planSha&quot;: &quot;ad9214c080085cf9752a8e55291ac368968e57ecd180b00b905d19bf2fbf1471&quot;,
+  &quot;rulesSha&quot;: &quot;104ed1e43e33efef8fa8487efc138ed9f425711d5b2c64a778b1a8de596be3f5&quot;,
+  &quot;approver&quot;: &quot;runner&quot;,
+  &quot;ts&quot;: &quot;2026-08-17T05:28:21.4473044Z&quot;,
+  &quot;rules&quot;: [
+    {
+      &quot;id&quot;: &quot;AW-PROD-001&quot;,
+      &quot;column&quot;: &quot;Color&quot;,
+      &quot;kind&quot;: &quot;ephemeral&quot;,
+      &quot;patched&quot;: 3,
+      &quot;samples&quot;: [
+        &quot;Multi&quot;,
+        &quot;Silver&quot;,
+        &quot;Yellow&quot;
+      ],
+      &quot;reason&quot;: &quot;The sample corruption job uses X9 as an impossible product-color sentinel. Consumers group products by the published color vocabulary and reject the sentinel.&quot;,
+      &quot;skipped&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;AW-ORDER-001&quot;,
+      &quot;column&quot;: &quot;Status&quot;,
+      &quot;kind&quot;: &quot;ephemeral&quot;,
+      &quot;patched&quot;: 3,
+      &quot;samples&quot;: [
+        &quot;5&quot;,
+        &quot;5&quot;,
+        &quot;5&quot;
+      ],
+      &quot;reason&quot;: &quot;The sample corruption job writes status zero. The AdventureWorks consumer contract accepts only the five statuses generated by this subset.&quot;,
+      &quot;skipped&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CUR-001&quot;,
+      &quot;column&quot;: &quot;Name&quot;,
+      &quot;kind&quot;: &quot;derived&quot;,
+      &quot;patched&quot;: 14,
+      &quot;samples&quot;: [
+        &quot;Australian Dollar&quot;,
+        &quot;Brazilian Real&quot;,
+        &quot;Canadian Dollar&quot;
+      ],
+      &quot;reason&quot;: &quot;A currency without its ISO name cannot be rendered by the invoicing consumer, which refuses to print a bare code. The name is not arbitrary: it is the reviewed ISO vocabulary in datasets/currencies.yaml, looked up by the row\u0027s own code. A code the vocabulary does not know (the seeded ZZZ row) is left unpatched and listed at the gate \u2014 inventing a name for an unknown code is exactly what this pipeline refuses to do.&quot;,
+      &quot;skipped&quot;: [
+        {
+          &quot;key&quot;: {
+            &quot;CurrencyCode&quot;: &quot;ZZZ&quot;
+          },
+          &quot;why&quot;: &quot;input (CurrencyCode \u0027ZZZ\u0027) matches no row of dataset \u0027currencies\u0027&quot;,
+          &quot;policy&quot;: &quot;onMissingInput: block&quot;
+        }
+      ]
+    },
+    {
+      &quot;id&quot;: &quot;AW-CUSTOMER-001&quot;,
+      &quot;column&quot;: &quot;PersonID&quot;,
+      &quot;kind&quot;: &quot;identity&quot;,
+      &quot;patched&quot;: 3,
+      &quot;samples&quot;: [
+        &quot;563&quot;,
+        &quot;588&quot;,
+        &quot;784&quot;
+      ],
+      &quot;reason&quot;: &quot;A customer without a person reference cannot be joined by the downstream customer consumer. Generated references are permanent ledger identities and must be reused after an upstream value is cleared.&quot;,
+      &quot;skipped&quot;: []
+    }
+  ],
+  &quot;newIdentities&quot;: [
+    {
+      &quot;key&quot;: {
+        &quot;CustomerID&quot;: &quot;1&quot;
+      },
+      &quot;value&quot;: &quot;563&quot;
+    },
+    {
+      &quot;key&quot;: {
+        &quot;CustomerID&quot;: &quot;2&quot;
+      },
+      &quot;value&quot;: &quot;588&quot;
+    },
+    {
+      &quot;key&quot;: {
+        &quot;CustomerID&quot;: &quot;3&quot;
+      },
+      &quot;value&quot;: &quot;784&quot;
+    }
+  ],
+  &quot;verify&quot;: {
+    &quot;l1&quot;: true,
+    &quot;l2&quot;: true,
+    &quot;l3&quot;: true,
+    &quot;regressions&quot;: [],
+    &quot;preexistingReds&quot;: []
+  }
+}
+</pre></details></td></tr>
+<tr><td><span class="phase">REPORT</span></td><td class="mono"><a href="artifacts/report.md">report.md</a></td><td class="num-cell">695 B</td><td>Human-readable run report (agent narrative, or the bare-facts fallback rendering).<details><summary>preview</summary><pre># Run report (narrative failed audit)
+
+Run `20260817T052819Z-657e` &#183; plan `ad9214c08008` &#183; rules `104ed1e43e33` &#183; approved by runner at 2026-08-17T05:28:21.4473044Z
+
+| Rule | Column | Kind | Patched | Skipped rows |
+|---|---|---|---|---|
+| AW-PROD-001 | Color | ephemeral | 3 | none |
+| AW-ORDER-001 | Status | ephemeral | 3 | none |
+| CUR-001 | Name | derived | 14 | CurrencyCode ZZZ |
+| AW-CUSTOMER-001 | PersonID | identity | 3 | none |
+
+## New identities
+
+- CustomerID 1 -&gt; `563` (permanent)
+- CustomerID 2 -&gt; `588` (permanent)
+- CustomerID 3 -&gt; `784` (permanent)
+
+## Verify
+
+- L1 re-scan:  pass
+- L2 invariants: pass
+- L3 consumer: pass
+- regressions: none
+- pre-existing failures: none
+</pre></details></td></tr>
+<tr><td><span class="phase">REPORT</span></td><td class="mono"><a href="artifacts/report.audit.json">report.audit.json</a></td><td class="num-cell">48 B</td><td>Deterministic audit of report.md against facts.json — verdict and any violations.<details><summary>preview</summary><pre>{
+  &quot;verdict&quot;: &quot;fallback&quot;,
+  &quot;violations&quot;: []
+}
+</pre></details></td></tr>
+</tbody></table></div>
+
+<h2>Databases</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>File</th><th>Size</th><th>What it is</th></tr></thead>
+<tbody>
+<tr><td class="mono"><a href="databases/adventureworks.db" download>adventureworks.db</a></td><td class="num-cell">4.0 KB</td><td>Root SQLite database (attaches the schema shards).</td></tr>
+<tr><td class="mono"><a href="databases/adventureworks.dbo.db" download>adventureworks.dbo.db</a></td><td class="num-cell">28.0 KB</td><td>SQLite shard for the dbo schema.</td></tr>
+<tr><td class="mono"><a href="databases/adventureworks.HumanResources.db" download>adventureworks.HumanResources.db</a></td><td class="num-cell">168.0 KB</td><td>SQLite shard for the HumanResources schema.</td></tr>
+<tr><td class="mono"><a href="databases/adventureworks.Person.db" download>adventureworks.Person.db</a></td><td class="num-cell">32.0 KB</td><td>SQLite shard for the Person schema.</td></tr>
+<tr><td class="mono"><a href="databases/adventureworks.Production.db" download>adventureworks.Production.db</a></td><td class="num-cell">80.0 KB</td><td>SQLite shard for the Production schema.</td></tr>
+<tr><td class="mono"><a href="databases/adventureworks.Sales.db" download>adventureworks.Sales.db</a></td><td class="num-cell">392.0 KB</td><td>SQLite shard for the Sales schema.</td></tr>
+</tbody></table></div>
+
+<footer>Generated 2026-08-17 05:28:30 UTC by samples/adventureworks/build-dashboard.ps1.</footer>
+</main>
+</body>
+</html>

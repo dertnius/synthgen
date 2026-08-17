@@ -1,0 +1,53 @@
+{
+  "runId": "20260817T052819Z-657e",
+  "l1": true,
+  "l2": true,
+  "l3": true,
+  "regressions": [],
+  "preexistingReds": [],
+  "invariants": [
+    {
+      "name": "AW-PROD-001.invariant",
+      "passed": true
+    },
+    {
+      "name": "AW-ORDER-001.invariant",
+      "passed": true
+    },
+    {
+      "name": "AW-CUSTOMER-001.invariant",
+      "passed": true
+    }
+  ],
+  "consumer": [
+    {
+      "name": "AdventureWorks.ProductColorSentinelAbsent",
+      "passed": true
+    },
+    {
+      "name": "AdventureWorks.OrderStatusContract",
+      "passed": true
+    },
+    {
+      "name": "AdventureWorks.CustomerPersonPresent",
+      "passed": true
+    },
+    {
+      "name": "AdventureWorks.CustomerPersonOrphans",
+      "passed": true
+    },
+    {
+      "name": "AdventureWorks.CurrencyNamesPresent",
+      "passed": true
+    },
+    {
+      "name": "AdventureWorks.ProductRowCountStable",
+      "passed": true
+    },
+    {
+      "name": "AdventureWorks.CustomerRowCountStable",
+      "passed": true
+    }
+  ],
+  "remainingPlannedGaps": []
+}
